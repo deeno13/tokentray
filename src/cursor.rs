@@ -45,7 +45,7 @@ pub fn request_refresh() {
     }
     #[test] fn cooldown_skips_credentials_and_network() {
         let previous=UsageSnapshot{status:"backoff".into(),backoff_until:now_ms()+60000,..Default::default()};
-        let next=read_once(&previous);assert_eq!(next.status,"backoff");assert_eq!(next.backoff_until,previous.backoff_until);
+        let next=read_once(None, &previous);assert_eq!(next.status,"backoff");assert_eq!(next.backoff_until,previous.backoff_until);
     }
 }
 
@@ -125,6 +125,7 @@ fn item(conn: &rusqlite::Connection, key: &str) -> Option<String> {
 struct Creds {
     cookie: String,
     plan: Option<String>,
+    email: Option<String>,
 }
 
 /// Re-read every time: the editor rotates the token, and holding on to an old value signs us out
@@ -134,7 +135,7 @@ fn read_credentials() -> Option<Creds> {
     let token = item(&conn, "cursorAuth/accessToken")?;
     let auth_id = item(&conn, "cursorAuth/stripeMembershipAuthId")?;
     let plan = item(&conn, "cursorAuth/stripeMembershipType");
-    Some(Creds { cookie: format!("WorkosCursorSessionToken={auth_id}::{token}"), plan })
+    Some(Creds { cookie: format!("WorkosCursorSessionToken={auth_id}::{token}"), plan, email:item(&conn,"cursorAuth/cachedEmail") })
 }
 
 /// For doctor: contains no secret values
@@ -232,7 +233,7 @@ fn cap(s: &str) -> String {
     }
 }
 
-fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
+fn read_once(app: Option<&AppHandle>, prev: &UsageSnapshot) -> UsageSnapshot {
     let mut snap = prev.clone();
     if snap.backoff_until > now_ms() { return snap; }
     let Some(creds) = read_credentials() else {
@@ -242,6 +243,7 @@ fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
     };
     match fetch_once(&creds.cookie) {
         Ok(v) => {
+            if let Some(app)=app {crate::account::publish(app,"cursor",crate::account::Account {email:crate::account::clean(creds.email.as_deref()),plan:crate::account::clean(v["membershipType"].as_str().or(creds.plan.as_deref())),..Default::default()});}
             snap.backoff_until = 0;
             let (windows, note) = parse_summary(&v);
             snap.fetched_at = now_ms();
@@ -278,7 +280,7 @@ fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
 }
 
 fn broadcast(app: &AppHandle, mut snap: UsageSnapshot) {
-    if snap.status == "needsAuth" { snap.windows.clear(); snap.fetched_at = 0; }
+    if snap.status == "needsAuth" { crate::account::publish(app,"cursor",Default::default()); snap.windows.clear(); snap.fetched_at = 0; }
     let st = app.state::<AppState>();
     *st.cursor.lock().unwrap() = snap.clone();
     persist(&snap);
@@ -317,7 +319,7 @@ pub fn start(app: AppHandle) {
                 let s = st.cursor.lock().unwrap().clone();
                 s
             };
-            let snap = read_once(&prev);
+            let snap = read_once(Some(&app), &prev);
             if snap.status == "error" || snap.status == "stale" {
                 crate::applog(&format!("cursor: {}", snap.note));
             }

@@ -41,7 +41,7 @@ pub fn parse(v: &Value) -> Vec<LimitWindow> {
     out
 }
 
-fn read_once() -> Result<Vec<LimitWindow>, &'static str> {
+fn read_once(app: &AppHandle) -> Result<Vec<LimitWindow>, &'static str> {
     let exe = executable().ok_or("Install the native Codex CLI and sign in with ChatGPT.")?;
     let mut cmd = Command::new(exe);
     cmd.arg("app-server").stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::null());
@@ -64,7 +64,12 @@ fn read_once() -> Result<Vec<LimitWindow>, &'static str> {
             if value.get("id").and_then(Value::as_u64) == Some(1) {
                 if value.get("error").is_some() { return Err("Codex initialization failed. Update your CLI."); }
                 writeln!(input, "{}", json!({"method":"initialized"})).map_err(|_| "Codex connection closed.")?;
-                writeln!(input, "{}", json!({"id":2,"method":"account/rateLimits/read"})).map_err(|_| "Codex connection closed.")?;
+                writeln!(input, "{}", json!({"id":3,"method":"account/read","params":{"refreshToken":false}})).map_err(|_| "Codex connection closed.")?;
+                input.flush().map_err(|_| "Codex connection closed.")?;
+            }
+            if value.get("id").and_then(Value::as_u64) == Some(3) {
+                crate::account::publish(app,"codex",crate::account::codex(&value["result"]));
+                writeln!(input,"{}",json!({"id":2,"method":"account/rateLimits/read"})).map_err(|_| "Codex connection closed.")?;
                 input.flush().map_err(|_| "Codex connection closed.")?;
             }
             if value.get("id").and_then(Value::as_u64) == Some(2) {
@@ -86,7 +91,7 @@ pub fn start(app: AppHandle) {
     std::thread::spawn(move || loop {
             if !crate::provider_enabled(&app, "codex") { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
         let prev = app.state::<AppState>().codex.lock().unwrap().clone();
-        let snapshot = match read_once() {
+        let snapshot = match read_once(&app) {
             Ok(windows) => UsageSnapshot { status:"ok".into(), windows, fetched_at:crate::extras::now_ms(), note:"Codex app-server".into(), ..Default::default() },
             Err(note) => UsageSnapshot { status: if prev.windows.is_empty() { "unavailable" } else { "stale" }.into(), note:note.into(), ..prev },
         };

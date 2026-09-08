@@ -27,3 +27,12 @@ export function ageText(at, now=Date.now()) { if (!at) return 'Not read yet'; co
 export function visibleWindows(s) { return ['needsAuth','absent'].includes(s?.status) ? [] : (s?.windows || []); }
 
 export function enabledProviders(settings) { const disabled=new Set(settings?.disabled ?? []);return PROVIDERS.filter(p=>!disabled.has(p.id)); }
+
+export function popupWidth(count,settings=false,details=false){return settings?440:Math.max(details?380:260,24+Math.max(0,count)*90);}
+export function accountText(account,snapshot,disabled=false){
+  const state=disabled?'Paused':statusText(snapshot);
+  if(['needsAuth','absent'].includes(snapshot?.status))return state+' · Account details unavailable';
+  const identity=account?.email||(account?.username?'@'+account.username:null)||'Account not reported';
+  const plan=account?.plan?account.plan+' plan':'Plan not reported';
+  return identity+' · '+plan+' · '+state;
+}

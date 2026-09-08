@@ -1,10 +1,11 @@
-import {PROVIDERS,percent,resetText,statusText,ageText,visibleWindows,enabledProviders} from './model.mjs';
+import {PROVIDERS,percent,resetText,statusText,ageText,visibleWindows,enabledProviders,popupWidth,accountText} from './model.mjs';
 const native = !!window.__TAURI__;
 const invoke = (name,args) => window.__TAURI__.core.invoke(name,args);
 const $ = id => document.getElementById(id);
+let accounts = {};
 let snapshots = {}, settings = {disabled:[],acrylic:true}, selected = null, settingsOpen = false;
 function node(tag, className, text) { const n=document.createElement(tag); if(className)n.className=className; if(text!=null)n.textContent=text; return n; }
-function notice(message) { $('notice').textContent=message; $('notice').hidden=!message; }
+function notice(message) { $('notice').textContent=message; $('notice').hidden=!message;resize(); }
 function render() {
   const providers=enabledProviders(settings);
   if(!providers.some(p=>p.id===selected))selected=null;
@@ -45,8 +46,30 @@ function render() {
 
     $('detail').className=provider.id; $('detail').append(body);
   }
+  updateAccounts();resize();
 }
-function resize() { if(native)invoke('resize_popup',{height:settingsOpen?560:selected?480:260}).catch(()=>{}); }
+let resizeFrame=0, resizing=false, resizeAgain=false, lastSize='';
+function resize() {
+  if(resizeFrame)return;
+  resizeFrame=requestAnimationFrame(async()=>{
+    resizeFrame=0;
+    if(resizing){resizeAgain=true;return;}
+    const width=popupWidth(enabledProviders(settings).length,settingsOpen,!!selected);
+    document.documentElement.style.setProperty('--popup-width',width+'px');
+    const content=settingsOpen?$('settings-page'):$('overview');
+    const header=document.querySelector('header').getBoundingClientRect().height;
+    const notices=['notice','preview'].reduce((sum,id)=>sum+($(id).hidden?0:$(id).getBoundingClientRect().height),0);
+    const height=Math.ceil(header+notices+content.scrollHeight+2);
+    const key=width+':'+height;
+    if(!native||key===lastSize)return;
+    resizing=true;
+    try{await invoke('resize_popup',{width,height});lastSize=key;}catch{lastSize=key;notice('Could not resize popup. Reopen TokenTray.');}
+    finally{resizing=false;if(resizeAgain){resizeAgain=false;resize();}}
+  });
+}
+function updateAccounts(){
+  for(const provider of PROVIDERS){const el=$('account-'+provider.id);if(el)el.textContent=accountText(accounts[provider.id],snapshots[provider.id],settings.disabled.includes(provider.id));}
+}
 function showSettings(open) {
   settingsOpen=open; $('settings-page').hidden=!open; $('overview').hidden=open;
   $('settings').setAttribute('aria-expanded',String(open));resize();
@@ -66,7 +89,7 @@ function renderSettings() {
       try { await persist({...settings,disabled:[...disabled]});notice(''); } catch { input.checked=!input.checked;notice('Could not save settings. Try again.'); }
       document.querySelectorAll('#settings-page input').forEach(el=>el.disabled=false);
     });
-    label.append(node('span','',provider.name),input);$('provider-settings').append(label);
+    const copy=node('span','setting-copy');const name=node('span','setting-name',provider.name);const meta=node('span','account-details');meta.id='account-'+provider.id;input.setAttribute('aria-label',provider.name);input.setAttribute('aria-describedby',meta.id);copy.append(name,meta);label.append(copy,input);$('provider-settings').append(label);
   }
   $('acrylic').checked=settings.acrylic;
 }
@@ -91,6 +114,8 @@ $('refresh').addEventListener('click',async()=>{
 if(native){
   try {
     settings=await invoke('get_settings');
+    await window.__TAURI__.event.listen('accounts',e=>{accounts=e.payload;updateAccounts();resize();});
+    accounts=await invoke('get_accounts');
     for(const p of PROVIDERS)await window.__TAURI__.event.listen(p.id==='claude'?'usage':p.id,e=>{snapshots[p.id]=e.payload;render();});
     await window.__TAURI__.event.listen('notice',e=>notice(e.payload));
     snapshots=await invoke('get_all');
@@ -99,10 +124,13 @@ if(native){
   try{const saved=JSON.parse(localStorage.getItem('tokentray-settings'));if(saved&&Array.isArray(saved.disabled))settings={disabled:saved.disabled,acrylic:saved.acrylic!==false};}catch{}
   $('preview').hidden=false;
   snapshots=Object.fromEntries(PROVIDERS.map(p=>[p.id,{status:'needsAuth',windows:[],fetched_at:0}]));
+  accounts={codex:{email:'alex@example.com',plan:'plus'},claude:{email:'alex@example.com',plan:'max'},copilot:{username:'alex-dev',plan:'individual'}};
   const now=Date.now();
   snapshots.codex={status:'ok',fetched_at:now,windows:[{label:'5-hour limit',used:0.38,resets_at:now+8160000},{label:'Weekly limit',used:0.62,resets_at:now+271200000}]};
   snapshots.claude={status:'ok',fetched_at:now,windows:[{label:'Current session',used:0.74,resets_at:now+3840000},{label:'Weekly (all models)',used:0.29,resets_at:now+435600000}]};
   snapshots.cursor={status:'stale',fetched_at:now-720000,windows:[{label:'Included usage',used:0.86,resets_at:now+864000000}]};
   snapshots.copilot={status:'ok',fetched_at:now,windows:[{label:'Premium requests',used:0.16,resets_at:now+1800000000}]};
 }
+const sizeObserver=new ResizeObserver(resize);for(const el of [document.querySelector('header'),$('providers'),$('detail'),$('settings-page'),$('notice')])sizeObserver.observe(el);
+window.addEventListener('resize',resize);
 renderSettings();render();material();setInterval(render,60000);

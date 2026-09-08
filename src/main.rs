@@ -1,6 +1,7 @@
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
 mod usage;
+mod account;
 mod codex;
 mod cursor;
 mod antigravity;
@@ -13,8 +14,9 @@ use tauri::{AppHandle, Manager};
 use usage::UsageSnapshot;
 
 pub struct AppState {
+    accounts: Mutex<BTreeMap<String, account::Account>>,
     settings: Mutex<config::Settings>,
-    popup_height: Mutex<u32>,
+    popup_size: Mutex<(u32, u32)>,
     usage: Mutex<UsageSnapshot>,
     codex: Mutex<UsageSnapshot>,
     cursor: Mutex<UsageSnapshot>,
@@ -36,13 +38,14 @@ fn save_settings(state: tauri::State<AppState>, settings: config::Settings) -> R
     Ok(())
 }
 #[tauri::command]
-fn resize_popup(app: AppHandle, height: u32) {
-    *app.state::<AppState>().popup_height.lock().unwrap() = height.clamp(240, 580);
+fn resize_popup(app: AppHandle, width: u32, height: u32) {
+    let (width, height) = (width.clamp(240, 1000), height.clamp(80, 1200));
+    *app.state::<AppState>().popup_size.lock().unwrap() = (width, height);
     let Some(w) = app.get_webview_window("main") else { return };
     if let Ok(Some(mon)) = w.current_monitor() {
         let area = mon.work_area(); let scale = mon.scale_factor();
-        let width = (760.0 * scale).round().min(area.size.width as f64) as u32;
-        let height = (height.clamp(240, 580) as f64 * scale).round().min(area.size.height as f64) as u32;
+        let width = (width as f64 * scale).round().min(area.size.width as f64) as u32;
+        let height = (height as f64 * scale).round().min(area.size.height as f64) as u32;
         let pos = w.outer_position().unwrap_or(area.position);
         let old = w.outer_size().unwrap_or_default();
         let _ = w.set_size(tauri::PhysicalSize::new(width, height));
@@ -56,6 +59,8 @@ fn resize_popup(app: AppHandle, height: u32) {
 // those strings: server bodies, local paths and credential diagnostics are not logs.
 pub fn applog(_line: &str) {}
 
+#[tauri::command]
+fn get_accounts(state: tauri::State<AppState>) -> BTreeMap<String, account::Account> { state.accounts.lock().unwrap().clone() }
 #[tauri::command]
 fn get_all(state: tauri::State<AppState>) -> BTreeMap<String, UsageSnapshot> {
     let mut out = state.extras.lock().unwrap().clone();
@@ -91,13 +96,14 @@ fn set_material(app: AppHandle, enabled: bool, dark: bool) -> bool {
 
 fn show_popup(app: &AppHandle) {
     let Some(w) = app.get_webview_window("main") else { return };
+    let (width, height) = *app.state::<AppState>().popup_size.lock().unwrap();
     // Tray click coordinates and monitor working areas are physical pixels.
     let cursor = app.cursor_position().unwrap_or_default();
     if let Ok(Some(mon)) = app.monitor_from_point(cursor.x, cursor.y) {
         let area = mon.work_area();
         let scale = mon.scale_factor();
-        let width = (760.0 * scale).round().min(area.size.width as f64) as u32;
-        let height = (*app.state::<AppState>().popup_height.lock().unwrap() as f64 * scale).round().min(area.size.height as f64) as u32;
+        let width = (width as f64 * scale).round().min(area.size.width as f64) as u32;
+        let height = (height as f64 * scale).round().min(area.size.height as f64) as u32;
         let _ = w.set_size(tauri::PhysicalSize::new(width, height));
         let x = (cursor.x as i32 - width as i32 / 2).clamp(area.position.x, area.position.x + area.size.width as i32 - width as i32);
         let y = (cursor.y as i32 - height as i32 - 10).clamp(area.position.y, area.position.y + area.size.height as i32 - height as i32);
@@ -113,13 +119,14 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show_popup(app)))
         .manage(AppState {
+            accounts: Mutex::new(BTreeMap::new()),
             settings: Mutex::new(config::Settings::load()),
-            popup_height: Mutex::new(260),
+            popup_size: Mutex::new((744, 182)),
             usage: Mutex::new(usage::load_persisted()), codex: Mutex::new(codex::load_persisted()),
             cursor: Mutex::new(cursor::load_persisted()), antigravity: Mutex::new(antigravity::load_persisted()),
             extras: Mutex::new(extras::load_persisted()),
         })
-        .invoke_handler(tauri::generate_handler![get_all, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material])
+        .invoke_handler(tauri::generate_handler![get_all, get_accounts, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material])
         .on_window_event(|w, event| match event {
             tauri::WindowEvent::Focused(false) => {
                 if !std::env::args().any(|arg| arg == "--inspect") { let _ = w.hide(); }

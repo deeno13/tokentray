@@ -463,7 +463,7 @@ struct Runtime {
     ever_bridged: bool,
 }
 
-fn read_once(rt: &mut Runtime, prev: &UsageSnapshot) -> UsageSnapshot {
+fn read_once(app: &AppHandle, rt: &mut Runtime, prev: &UsageSnapshot) -> UsageSnapshot {
     let mut snap = UsageSnapshot::default();
     // 1. Local bridge (the cached endpoint first; the port changes on every launch, so a miss is normal)
     let mut bridge_err = String::new();
@@ -515,6 +515,7 @@ fn read_once(rt: &mut Runtime, prev: &UsageSnapshot) -> UsageSnapshot {
     match read_credentials() {
         Some(c) if !c.expired => match load_tier(&c.access_token) {
             Ok(t) => {
+                crate::account::publish(app,"antigravity",crate::account::Account {plan:crate::account::clean(Some(&t)),..Default::default()});
                 tier = Some(t);
                 if let Some(w) = direct_quota(&c.access_token) {
                     snap.status = "ok".into();
@@ -557,7 +558,7 @@ fn read_once(rt: &mut Runtime, prev: &UsageSnapshot) -> UsageSnapshot {
 }
 
 fn broadcast(app: &AppHandle, mut snap: UsageSnapshot) {
-    if snap.status == "needsAuth" { snap.windows.clear(); snap.fetched_at = 0; }
+    if snap.status == "needsAuth" { crate::account::publish(app,"antigravity",Default::default()); snap.windows.clear(); snap.fetched_at = 0; }
     let st = app.state::<AppState>();
     *st.antigravity.lock().unwrap() = snap.clone();
     persist(&snap);
@@ -597,7 +598,7 @@ pub fn start(app: AppHandle) {
                 let s = st.antigravity.lock().unwrap().clone();
                 s
             };
-            let snap = read_once(&mut rt, &prev);
+            let snap = read_once(&app, &mut rt, &prev);
             broadcast(&app, snap);
             sleep_interruptible(POLL_SECS);
         }

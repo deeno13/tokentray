@@ -255,6 +255,8 @@ fn set_and_broadcast(app: &AppHandle, mutate: impl FnOnce(&mut UsageSnapshot)) {
         if u.status == "needsAuth" { u.windows.clear(); u.fetched_at = 0; }
         u.clone()
     };
+    if snap.status == "needsAuth" { crate::account::publish(app,"claude",Default::default()); }
+    else if snap.status == "ok" || snap.status == "unavailable" { crate::account::publish(app,"claude",crate::account::claude()); }
     persist(&snap);
     let _ = app.emit("usage", &snap);
 }

@@ -37,3 +37,5 @@ The user's requested material is Windows **Acrylic**. Microsoft's guidance speci
 - [Microsoft: NotifyIcon](https://learn.microsoft.com/en-us/dotnet/api/system.windows.forms.notifyicon)
 - [Electron tray API](https://www.electronjs.org/docs/latest/api/tray)
 - [OpenAI: Codex app-server](https://learn.chatgpt.com/docs/app-server)
+
+Account details: Codex uses [account/read](https://github.com/openai/codex/blob/main/codex-rs/app-server/README.md) with refreshToken false; Claude and Cursor use the display metadata from their existing local stores. Copilot uses copilot_plan and the same credential for GitHub /user (private email may be absent, so username is the fallback). Grok can expose its stored email; Antigravity exposes its returned tier; OpenCode identifies Go. GLM identity/tier is not exposed by the quota source. No identity metadata is added to quota caches.

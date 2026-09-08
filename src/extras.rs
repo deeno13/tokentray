@@ -138,7 +138,7 @@ pub fn parse(id: &str, v: &Value) -> Result<Vec<LimitWindow>, String> {
     }
     if out.is_empty() { Err("No metered quota reported".into()) } else { Ok(out) }
 }
-fn read(id: &str) -> Result<Vec<LimitWindow>, Failure> {
+fn read(app: &AppHandle, id: &str) -> Result<Vec<LimitWindow>, Failure> {
     let home = dirs::home_dir().ok_or(Failure::Auth)?;
     let (url, token) = match id {
         "glm" => { let (token,base) = glm_credential(&home).ok_or(Failure::Auth)?; (format!("{base}/api/monitor/usage/quota/limit"),token) }
@@ -149,6 +149,17 @@ fn read(id: &str) -> Result<Vec<LimitWindow>, Failure> {
     };
     let v = fetch(id,&url,&token)?;
     if id == "glm" { match v["code"].as_i64() { Some(401 | 403) => return Err(Failure::Auth), Some(429) => return Err(Failure::Backoff(60)), _ => {} } }
+    let mut account=crate::account::Account::default();
+    if id == "copilot" {
+        account.plan=crate::account::clean(v["copilot_plan"].as_str());
+        // Same credential as the quota request. No extra scopes or token refresh.
+        if let Ok(profile)=fetch(id,"https://api.github.com/user",&token) {account.email=crate::account::clean(profile["email"].as_str());account.username=crate::account::clean(profile["login"].as_str());}
+    }
+    if id == "opencode" { account.plan=Some("Go".into()); }
+    if id == "grok" {
+        if let Some(auth)=json_file(&home.join(".grok/auth.json")) {if let Some(entries)=auth.as_object() {account.email=entries.values().find(|entry|secret(&entry["key"]).as_deref()==Some(token.as_str())).and_then(|entry|crate::account::clean(entry["email"].as_str()));}}
+    }
+    crate::account::publish(app,id,account);
     parse(id,&v).map_err(|_| Failure::Invalid)
 }
 pub fn start(app: AppHandle) {
@@ -158,7 +169,7 @@ pub fn start(app: AppHandle) {
             if !crate::provider_enabled(&app, id) { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
             let prev = app.state::<AppState>().extras.lock().unwrap().get(id).cloned().unwrap_or_default();
             if prev.backoff_until > now_ms() { std::thread::sleep(Duration::from_secs(1)); continue; }
-            let snapshot = match read(id) {
+            let snapshot = match read(&app, id) {
                 Ok(windows) => { failures = 0; UsageSnapshot { status:"ok".into(), windows, fetched_at:now_ms(), note:String::new(), backoff_until:0 } }
                 Err(e) => {
                     let (status,note,deadline) = match e {
@@ -168,6 +179,7 @@ pub fn start(app: AppHandle) {
                         Failure::Backoff(seconds) => { failures = failures.saturating_add(1); ("backoff","Provider requested a cooldown. Refresh will wait.", now_ms().saturating_add(seconds.max(60 * (1u64 << failures.min(4))).saturating_mul(1000))) }
                     };
                     let clear = status == "needsAuth";
+                    if clear { crate::account::publish(&app,id,Default::default()); }
                     UsageSnapshot { status:if !clear && !prev.windows.is_empty() { "stale" } else { status }.into(), note:note.into(), backoff_until:deadline, windows:if clear { vec![] } else { prev.windows }, fetched_at:if clear { 0 } else { prev.fetched_at } }
                 }
             };

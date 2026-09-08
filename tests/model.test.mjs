@@ -8,3 +8,7 @@ test('signed-out accounts never display prior account readings',()=>assert.deepE
 
 import {enabledProviders} from '../ui/model.mjs';
 test('provider settings hide disabled entries and preserve provider order',()=>{assert.deepEqual(enabledProviders({disabled:['codex','grok','unknown']}).map(p=>p.id),['claude','cursor','antigravity','glm','opencode','copilot']);assert.equal(enabledProviders({disabled:PROVIDERS.map(p=>p.id)}).length,0);assert.equal(enabledProviders().length,8);});
+
+import {popupWidth,accountText} from '../ui/model.mjs';
+test('popup width follows enabled providers and remains usable for settings/details',()=>{assert.ok(popupWidth(3)<popupWidth(8));assert.equal(popupWidth(8)-popupWidth(7),90);assert.ok(popupWidth(0)>=240);assert.ok(popupWidth(1,false,true)>popupWidth(1));assert.equal(popupWidth(1,true),popupWidth(8,true));});
+test('settings show identity and plan while hiding signed-out identity',()=>{const a={email:'alex@example.com',plan:'plus'};assert.match(accountText(a,{status:'ok'}),/alex@example.com.*plus plan/);assert.doesNotMatch(accountText(a,{status:'needsAuth'}),/alex@example.com/);assert.match(accountText(null,{status:'ok'}),/Plan not reported/);assert.match(accountText({username:'alex'},{status:'ok'},true),/@alex.*Paused/);});
