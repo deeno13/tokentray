@@ -80,9 +80,19 @@ fn gh_token() -> Option<String> {
     String::from_utf8(output.stdout).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
 }
 #[derive(Debug)] enum Failure { Auth, Backoff(u64), Invalid, Network }
-fn fetch(url: &str, token: &str) -> Result<Value, Failure> {
+fn auth_headers(id: &str, token: &str) -> Vec<(&'static str, String)> {
+    let authorization = if id == "glm" { token.to_string() } else { format!("Bearer {token}") };
+    let mut headers = vec![("Authorization", authorization), ("Accept", "application/json".into()), ("User-Agent", "TokenTray/0.1.0".into())];
+    if id == "glm" { headers.push(("Content-Type", "application/json".into())); }
+    if id == "grok" { headers.push(("X-XAI-Token-Auth", "xai-grok-cli".into())); }
+    if id == "copilot" { headers.push(("X-GitHub-Api-Version", "2022-11-28".into())); }
+    headers
+}
+fn fetch(id: &str, url: &str, token: &str) -> Result<Value, Failure> {
     let agent = ureq::AgentBuilder::new().redirects(0).timeout(Duration::from_secs(15)).build();
-    match agent.get(url).set("Authorization", &format!("Bearer {token}")).set("Accept","application/json").set("User-Agent","TokenTray/0.1.0").set("X-GitHub-Api-Version","2022-11-28").call() {
+    let mut request = agent.get(url);
+    for (key, value) in auth_headers(id, token) { request = request.set(key, &value); }
+    match request.call() {
         Ok(r) => r.into_json().map_err(|_| Failure::Invalid),
         Err(ureq::Error::Status(401 | 403, _)) => Err(Failure::Auth),
         Err(ureq::Error::Status(429, r)) => Err(Failure::Backoff(r.header("retry-after").and_then(|s| s.parse::<u64>().ok()).unwrap_or(60).max(60))),
@@ -137,7 +147,7 @@ fn read(id: &str) -> Result<Vec<LimitWindow>, Failure> {
         "copilot" => ("https://api.github.com/copilot_internal/user".into(), gh_token().ok_or(Failure::Auth)?),
         _ => return Err(Failure::Invalid),
     };
-    let v = fetch(&url,&token)?;
+    let v = fetch(id,&url,&token)?;
     if id == "glm" { match v["code"].as_i64() { Some(401 | 403) => return Err(Failure::Auth), Some(429) => return Err(Failure::Backoff(60)), _ => {} } }
     parse(id,&v).map_err(|_| Failure::Invalid)
 }
@@ -170,6 +180,12 @@ pub fn start(app: AppHandle) {
 
 #[cfg(test)] mod tests {
     use super::*; use serde_json::json;
+    #[test] fn provider_authentication_schemes_match_their_clients() {
+        assert!(auth_headers("glm", "synthetic").contains(&("Authorization", "synthetic".into())));
+        assert!(auth_headers("grok", "synthetic").contains(&("X-XAI-Token-Auth", "xai-grok-cli".into())));
+        assert!(auth_headers("opencode", "synthetic").contains(&("Authorization", "Bearer synthetic".into())));
+        assert!(!auth_headers("grok", "synthetic").iter().any(|(key,_)| *key == "X-GitHub-Api-Version"));
+    }
     #[test] fn no_invented_zero() { for id in IDS { assert!(parse(id,&json!({})).is_err()); } }
     #[test] fn glm_envelope_and_millisecond_reset() {
         assert!(parse("glm",&json!({"code":401,"success":false,"data":{"limits":[{"percentage":0}]}})).is_err());

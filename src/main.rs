@@ -87,7 +87,9 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![get_all, refresh_usage, hide_popup, set_material])
         .on_window_event(|w, event| match event {
-            tauri::WindowEvent::Focused(false) => { let _ = w.hide(); }
+            tauri::WindowEvent::Focused(false) => {
+                if !std::env::args().any(|arg| arg == "--inspect") { let _ = w.hide(); }
+            }
             tauri::WindowEvent::CloseRequested { api, .. } => { api.prevent_close(); let _ = w.hide(); }
             _ => {}
         })
@@ -117,7 +119,11 @@ fn main() {
             usage::start(app.handle().clone()); codex::start(app.handle().clone());
             cursor::start(app.handle().clone()); antigravity::start(app.handle().clone());
             extras::start(app.handle().clone());
-            if std::env::args().any(|arg| arg == "--show") { show_popup(app.handle()); }
+            // Automation tools often exclude tray/tool windows from their inventory.
+            // This explicit developer mode exposes the same flyout for inspection.
+            let inspect = std::env::args().any(|arg| arg == "--inspect");
+            if inspect { if let Some(w) = app.get_webview_window("main") { let _ = w.set_skip_taskbar(false); } }
+            if inspect || std::env::args().any(|arg| arg == "--show") { show_popup(app.handle()); }
             Ok(())
         })
         .run(tauri::generate_context!()).expect("TokenTray could not start");

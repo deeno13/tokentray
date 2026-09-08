@@ -19,7 +19,7 @@ jobs:
         with:
           cache-on-failure: true
       - name: Rust regression checks
-        run: cargo test --release
+        run: cargo test --release --locked
       - name: Preserve resolved dependency versions
         if: always()
         uses: actions/upload-artifact@v4
@@ -27,7 +27,7 @@ jobs:
           name: resolved-cargo-lock
           path: Cargo.lock
       - name: Build portable Windows executable
-        run: cargo build --release
+        run: cargo build --release --locked
       - uses: actions/upload-artifact@v4
         with:
           name: TokenTray-windows-x64

@@ -34,14 +34,16 @@ Only quota snapshots are cached under `%APPDATA%\TokenTray`; no prompts or answe
 Install Rust stable with the MSVC toolchain, Visual Studio C++ Build Tools, Windows SDK and WebView2. Then:
 
 ```powershell
-cargo test
+cargo test --release --locked
 node --test tests/*.test.mjs
-cargo build --release
+cargo build --release --locked
 .\target\release\tokentray.exe --show
 ```
 
-Windows CI runs the parser tests, frontend model tests and release compilation, then uploads a private portable executable. It does not publish a release or deploy anything. The first build resolves the adapted dependency lockfile; subsequent builds should use the committed regenerated lockfile.
+Windows CI runs the parser tests, frontend model tests and release compilation, then uploads a private portable executable. It does not publish a release or deploy anything. The committed Cargo.lock records the dependency versions resolved by the Windows runner; CI enforces it with `--locked`.
 
 The `ui/` folder can be served by any static server for design review. Browser preview always labels its synthetic sample data; native execution uses only provider readings.
+
+For Windows UI automation, `tokentray.exe --inspect` exposes the same flyout as a taskbar window and keeps it open on blur. This developer-only mode makes it discoverable to automation tools that filter out tray/tool windows. Escape and Close still hide it. Normal launches keep tray-only behavior and dismiss on blur.
 
 See [stack research](docs/research.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
