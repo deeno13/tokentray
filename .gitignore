@@ -1,0 +1,7 @@
+/target/
+/node_modules/
+*.log
+.env*
+!.env.example
+/artifacts/
+/ui-test-results/

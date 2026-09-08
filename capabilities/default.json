@@ -1,0 +1,2 @@
+{"identifier":"default","description":"Local TokenTray popup events only","windows":["main"],"permissions":["core:event:default"]}
+

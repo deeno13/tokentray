@@ -1,0 +1,28 @@
+name: Windows
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Frontend regression checks
+        run: node --test tests/*.test.mjs
+      - name: Install Rust
+        run: rustup update stable --no-self-update
+      - uses: Swatinem/rust-cache@v2
+      - name: Rust regression checks
+        run: cargo test
+      - name: Build portable Windows executable
+        run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TokenTray-windows-x64
+          path: target/release/tokentray.exe
+          if-no-files-found: error
+
