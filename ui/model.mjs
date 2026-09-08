@@ -25,3 +25,5 @@ export function statusText(s, now=Date.now()) {
 }
 export function ageText(at, now=Date.now()) { if (!at) return 'Not read yet'; const m=Math.max(0,Math.floor((now-at)/60000)); return m<1?'Updated just now': m<60?`Updated ${m}m ago`:`Updated ${Math.floor(m/60)}h ago`; }
 export function visibleWindows(s) { return ['needsAuth','absent'].includes(s?.status) ? [] : (s?.windows || []); }
+
+export function enabledProviders(settings) { const disabled=new Set(settings?.disabled ?? []);return PROVIDERS.filter(p=>!disabled.has(p.id)); }

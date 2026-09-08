@@ -155,6 +155,7 @@ pub fn start(app: AppHandle) {
     for id in IDS { let app = app.clone(); std::thread::spawn(move || {
         let mut generation = REFRESH.load(Ordering::Relaxed); let mut failures = 0u32;
         loop {
+            if !crate::provider_enabled(&app, id) { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
             let prev = app.state::<AppState>().extras.lock().unwrap().get(id).cloned().unwrap_or_default();
             if prev.backoff_until > now_ms() { std::thread::sleep(Duration::from_secs(1)); continue; }
             let snapshot = match read(id) {

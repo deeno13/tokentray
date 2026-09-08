@@ -269,6 +269,7 @@ pub fn start(app: AppHandle) {
         }
         let mut consecutive_429: u32 = 0;
         loop {
+            if !crate::provider_enabled(&app, "claude") { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
             // No requests inside the backoff window
             let bu = {
                 let st = app.state::<AppState>();

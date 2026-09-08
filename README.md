@@ -1,6 +1,6 @@
 # TokenTray
 
-AI agent usage limits, one click from your Windows tray. A compact Fluent flyout with native Windows Acrylic, light/dark appearance, usage bars and reset countdowns.
+AI agent usage limits, one click from your Windows tray. A compact Fluent flyout with native Windows Acrylic, light/dark appearance, a horizontal row of progress rings and reset countdowns.
 
 **Early development build.** Eight provider adapters are implemented; availability depends on each installed tool, account and endpoint. Internal provider endpoints may change. Missing data is shown as unavailable, never as zero usage.
 
@@ -8,9 +8,9 @@ AI agent usage limits, one click from your Windows tray. A compact Fluent flyout
 
 Download `TokenTray-windows-x64` from the private repository's **Actions → Windows → Artifacts**, extract it and run `tokentray.exe`. Windows 10/11 x64 with Microsoft Edge WebView2 Runtime is required. The build is unsigned; signing and an installer are future work.
 
-Click the tray icon to open the flyout. Click a provider to expand its limit windows. Escape or clicking outside closes it. Right click the tray for Refresh, Start with Windows (opt-in), or Quit. If Windows puts the icon in the overflow, drag it into the visible notification area. `tokentray.exe --show` opens the flyout at launch.
+Click the tray icon to open the flyout. Click a provider ring to reveal its limit windows. Settings lets you enable or disable each provider; choices survive restarts and disabled providers skip future checks (an in-flight check may finish). Escape returns from Settings or details, then closes the popup. Clicking outside closes it. Right click the tray for Refresh, Start with Windows (opt-in), or Quit. If Windows puts the icon in the overflow, drag it into the visible notification area. `tokentray.exe --show` opens the flyout at launch.
 
-The Acrylic checkbox switches to an opaque surface. High-contrast and reduced-transparency browser preferences request the same fallback. Native material rendering varies with Windows version and compositor settings.
+The Acrylic switch in Settings switches to an opaque surface. High-contrast and reduced-transparency browser preferences request the same fallback. Native material rendering varies with Windows version and compositor settings.
 
 ## Provider connections
 
@@ -27,7 +27,7 @@ The Acrylic checkbox switches to an opaque surface. High-contrast and reduced-tr
 
 No new login UI, backend service, telemetry, or key uploads. Credentials never enter the web frontend or repository. Native adapters read existing sessions and contact the corresponding provider directly. Codex owns its own authentication when its app-server is invoked; TokenTray does not manage its credentials. Monitoring starts no AI turns and redeems no reset credits.
 
-Only quota snapshots are cached under `%APPDATA%\TokenTray`; no prompts or answers are saved. Antigravity's inherited fallback scans local activity logs to derive a count. Stale readings retain their timestamp. Windows-native credentials are supported; WSL-only sign-ins and multiple accounts need later work.
+Provider and appearance preferences are saved in config.json; quota snapshots are cached under `%APPDATA%\TokenTray`; no prompts or answers are saved. Antigravity's inherited fallback scans local activity logs to derive a count. Stale readings retain their timestamp. Windows-native credentials are supported; WSL-only sign-ins and multiple accounts need later work.
 
 ## Develop and verify
 

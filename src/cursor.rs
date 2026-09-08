@@ -311,6 +311,7 @@ pub fn start(app: AppHandle) {
             }
         }
         loop {
+            if !crate::provider_enabled(&app, "cursor") { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
             let prev = {
                 let st = app.state::<AppState>();
                 let s = st.cursor.lock().unwrap().clone();

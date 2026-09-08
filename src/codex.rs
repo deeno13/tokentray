@@ -84,6 +84,7 @@ fn read_once() -> Result<Vec<LimitWindow>, &'static str> {
 
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || loop {
+            if !crate::provider_enabled(&app, "codex") { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
         let prev = app.state::<AppState>().codex.lock().unwrap().clone();
         let snapshot = match read_once() {
             Ok(windows) => UsageSnapshot { status:"ok".into(), windows, fetched_at:crate::extras::now_ms(), note:"Codex app-server".into(), ..Default::default() },

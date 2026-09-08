@@ -591,6 +591,7 @@ pub fn start(app: AppHandle) {
         }
         let mut rt = Runtime { endpoint: None, ever_bridged: false };
         loop {
+            if !crate::provider_enabled(&app, "antigravity") { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
             let prev = {
                 let st = app.state::<AppState>();
                 let s = st.antigravity.lock().unwrap().clone();

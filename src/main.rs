@@ -13,11 +13,43 @@ use tauri::{AppHandle, Manager};
 use usage::UsageSnapshot;
 
 pub struct AppState {
+    settings: Mutex<config::Settings>,
+    popup_height: Mutex<u32>,
     usage: Mutex<UsageSnapshot>,
     codex: Mutex<UsageSnapshot>,
     cursor: Mutex<UsageSnapshot>,
     antigravity: Mutex<UsageSnapshot>,
     extras: Mutex<BTreeMap<String, UsageSnapshot>>,
+}
+
+pub fn provider_enabled(app: &AppHandle, id: &str) -> bool { app.state::<AppState>().settings.lock().unwrap().enabled(id) }
+#[tauri::command]
+fn get_settings(state: tauri::State<AppState>) -> config::Settings { state.settings.lock().unwrap().clone() }
+#[tauri::command]
+fn save_settings(state: tauri::State<AppState>, settings: config::Settings) -> Result<(), String> {
+    let mut current = state.settings.lock().unwrap();
+    settings.save()?;
+    let newly_enabled: Vec<_> = config::PROVIDERS.into_iter().filter(|id| !current.enabled(id) && settings.enabled(id)).collect();
+    *current = settings;
+    drop(current);
+    for id in newly_enabled { match id { "codex" => codex::request_refresh(), "claude" => usage::request_refresh(), "cursor" => cursor::request_refresh(), "antigravity" => antigravity::request_refresh(), _ => extras::request_refresh() } }
+    Ok(())
+}
+#[tauri::command]
+fn resize_popup(app: AppHandle, height: u32) {
+    *app.state::<AppState>().popup_height.lock().unwrap() = height.clamp(240, 580);
+    let Some(w) = app.get_webview_window("main") else { return };
+    if let Ok(Some(mon)) = w.current_monitor() {
+        let area = mon.work_area(); let scale = mon.scale_factor();
+        let width = (760.0 * scale).round().min(area.size.width as f64) as u32;
+        let height = (height.clamp(240, 580) as f64 * scale).round().min(area.size.height as f64) as u32;
+        let pos = w.outer_position().unwrap_or(area.position);
+        let old = w.outer_size().unwrap_or_default();
+        let _ = w.set_size(tauri::PhysicalSize::new(width, height));
+        let x = pos.x.clamp(area.position.x, area.position.x + area.size.width as i32 - width as i32);
+        let y = (pos.y + old.height as i32 - height as i32).clamp(area.position.y, area.position.y + area.size.height as i32 - height as i32);
+        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+    }
 }
 
 // Upstream adapters call this with provider error details. Deliberately discard
@@ -64,8 +96,8 @@ fn show_popup(app: &AppHandle) {
     if let Ok(Some(mon)) = app.monitor_from_point(cursor.x, cursor.y) {
         let area = mon.work_area();
         let scale = mon.scale_factor();
-        let width = (420.0 * scale).round().min(area.size.width as f64) as u32;
-        let height = (620.0 * scale).round().min(area.size.height as f64) as u32;
+        let width = (760.0 * scale).round().min(area.size.width as f64) as u32;
+        let height = (*app.state::<AppState>().popup_height.lock().unwrap() as f64 * scale).round().min(area.size.height as f64) as u32;
         let _ = w.set_size(tauri::PhysicalSize::new(width, height));
         let x = (cursor.x as i32 - width as i32 / 2).clamp(area.position.x, area.position.x + area.size.width as i32 - width as i32);
         let y = (cursor.y as i32 - height as i32 - 10).clamp(area.position.y, area.position.y + area.size.height as i32 - height as i32);
@@ -81,11 +113,13 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show_popup(app)))
         .manage(AppState {
+            settings: Mutex::new(config::Settings::load()),
+            popup_height: Mutex::new(260),
             usage: Mutex::new(usage::load_persisted()), codex: Mutex::new(codex::load_persisted()),
             cursor: Mutex::new(cursor::load_persisted()), antigravity: Mutex::new(antigravity::load_persisted()),
             extras: Mutex::new(extras::load_persisted()),
         })
-        .invoke_handler(tauri::generate_handler![get_all, refresh_usage, hide_popup, set_material])
+        .invoke_handler(tauri::generate_handler![get_all, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material])
         .on_window_event(|w, event| match event {
             tauri::WindowEvent::Focused(false) => {
                 if !std::env::args().any(|arg| arg == "--inspect") { let _ = w.hide(); }
