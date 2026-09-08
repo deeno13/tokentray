@@ -1,23 +1,13 @@
-# Verification — 2026-09-08
+# Verification — horizontal rings and settings
 
-Source build: `2565c65927a6e8866610dd7a4c73bc48d27b904a`.
+Source build: f05c7b7987ada5996377aad273517ded23ae98ff.
 
-[Windows CI run](https://github.com/deeno13/tokentray/actions/runs/34235903612): **passed**.
+[Windows CI](https://github.com/deeno13/tokentray/actions/runs/34238750979) passed: 17 Rust release tests, 6 JavaScript tests, and Windows x64 release compilation. Settings tests cover default-enabled providers and serialized disabled-provider/appearance preferences. Frontend tests cover filtering, all-disabled state, and existing quota edge cases.
 
-- 15 Rust regression tests passed in release mode with the committed dependency lockfile.
-- 5 JavaScript model tests passed: provider inventory, unknown versus zero, derived counts, countdowns, stale readings, and signed-out cache hiding.
-- Windows x64 release compilation passed. Portable executable: 12,759,040 bytes.
-- Native executable launched successfully on Windows build 26200.
-- Native live reads succeeded for Codex (three returned quota windows) and GitHub Copilot (two metered windows). Other providers reported absent/sign-in-needed states; no eligible local sessions were available to verify them live.
-- Native popup screenshot and accessibility tree were inspected: real readings, Acrylic-enabled surface, provider statuses, reset labels, accessible progress indicators, and all eight provider entries were present.
-- Browser preview filtering and provider expansion were verified at the popup's 420 × 620 layout. Preview data is explicitly labelled synthetic and is excluded from native execution.
+Browser interaction checks verified all eight rings fit at 760 × 260 CSS pixels, provider details expand and collapse with Escape, a disabled provider stays hidden after reload, settings reflects the saved switch state, all providers can be disabled, and all can be enabled again. Settings layout was inspected. Preview data remains explicitly labelled synthetic.
 
-## Limits of this verification
+The updated native executable launched successfully in normal tray mode. Native tray clicking, popup resizing, settings writes through IPC, and Acrylic switching still need a manual interaction pass; browser tests do not prove those Windows interactions. The previous build's live Codex/Copilot checks remain prior-build evidence, not a fresh test of this binary. The six other adapters still need eligible signed-in sessions for live checks.
 
-Windows Computer Use could capture the inspection window but rejected input with `window is not a usable app window`; a refreshed lookup could not find it. Actual native tray clicking, light-dismiss, keyboard dismissal, and the Acrylic toggle still require a manual interaction pass. `--inspect` intentionally exposes the window to automation and disables light-dismiss; normal launches do not use this mode.
+Disabled providers skip future quota reads; a request already in flight may finish. Enabling a provider respects existing polling and cooldown behavior. Preferences save to %APPDATA%\TokenTray\config.json. The build remains unsigned.
 
-Provider parser fixtures and authentication header tests are not a substitute for signed-in live checks of Claude Code, Cursor, Antigravity, GLM, Grok and OpenCode. Internal endpoints can change. Multi-account discovery, WSL-only sessions, notifications, an installer, code signing and automatic updates are not part of this first build.
-
-SHA-256 of the final executable:
-
-`c639f3d9de195e2b982d5217321a3fb87e226ba29af694d865fee8f408c68317`
+Executable SHA-256: 6a758e95c72e8be06e63ad7301d6d357576e07c7ccde768f6792c4eea7495631
