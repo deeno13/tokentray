@@ -2,6 +2,7 @@
 
 mod usage;
 mod account;
+mod popup;
 mod codex;
 mod cursor;
 mod antigravity;
@@ -14,6 +15,7 @@ use tauri::{AppHandle, Manager};
 use usage::UsageSnapshot;
 
 pub struct AppState {
+    interaction: Mutex<popup::Interaction>,
     accounts: Mutex<BTreeMap<String, account::Account>>,
     settings: Mutex<config::Settings>,
     popup_size: Mutex<(u32, u32)>,
@@ -48,10 +50,9 @@ fn resize_popup(app: AppHandle, width: u32, height: u32) {
         let height = (height as f64 * scale).round().min(area.size.height as f64) as u32;
         let pos = w.outer_position().unwrap_or(area.position);
         let old = w.outer_size().unwrap_or_default();
-        let _ = w.set_size(tauri::PhysicalSize::new(width, height));
-        let x = pos.x.clamp(area.position.x, area.position.x + area.size.width as i32 - width as i32);
-        let y = (pos.y + old.height as i32 - height as i32).clamp(area.position.y, area.position.y + area.size.height as i32 - height as i32);
-        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+        let p=popup::fit((area.position.x,area.position.y),(area.size.width,area.size.height),(pos.x,pos.y+old.height as i32-height as i32),(width,height),scale);
+        let _ = w.set_size(tauri::PhysicalSize::new(p.width,p.height));
+        let _ = w.set_position(tauri::PhysicalPosition::new(p.x,p.y));
     }
 }
 
@@ -82,6 +83,7 @@ fn refresh_usage() {
 
 #[tauri::command]
 fn hide_popup(app: AppHandle) {
+    app.state::<AppState>().interaction.lock().unwrap().cancel();
     if let Some(w) = app.get_webview_window("main") { let _ = w.hide(); }
 }
 
@@ -95,6 +97,7 @@ fn set_material(app: AppHandle, enabled: bool, dark: bool) -> bool {
 }
 
 fn show_popup(app: &AppHandle) {
+    app.state::<AppState>().interaction.lock().unwrap().cancel();
     let Some(w) = app.get_webview_window("main") else { return };
     let (width, height) = *app.state::<AppState>().popup_size.lock().unwrap();
     // Tray click coordinates and monitor working areas are physical pixels.
@@ -104,10 +107,10 @@ fn show_popup(app: &AppHandle) {
         let scale = mon.scale_factor();
         let width = (width as f64 * scale).round().min(area.size.width as f64) as u32;
         let height = (height as f64 * scale).round().min(area.size.height as f64) as u32;
-        let _ = w.set_size(tauri::PhysicalSize::new(width, height));
-        let x = (cursor.x as i32 - width as i32 / 2).clamp(area.position.x, area.position.x + area.size.width as i32 - width as i32);
-        let y = (cursor.y as i32 - height as i32 - 10).clamp(area.position.y, area.position.y + area.size.height as i32 - height as i32);
-        let _ = w.set_position(tauri::PhysicalPosition::new(x, y));
+        let desired=(cursor.x as i32-width as i32/2,cursor.y as i32-height as i32-(12.0*scale).round() as i32);
+        let p=popup::fit((area.position.x,area.position.y),(area.size.width,area.size.height),desired,(width,height),scale);
+        let _ = w.set_size(tauri::PhysicalSize::new(p.width,p.height));
+        let _ = w.set_position(tauri::PhysicalPosition::new(p.x,p.y));
     }
     let _ = w.show();
     let _ = w.set_focus();
@@ -119,6 +122,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show_popup(app)))
         .manage(AppState {
+            interaction: Mutex::new(popup::Interaction::default()),
             accounts: Mutex::new(BTreeMap::new()),
             settings: Mutex::new(config::Settings::load()),
             popup_size: Mutex::new((744, 182)),
@@ -129,9 +133,24 @@ fn main() {
         .invoke_handler(tauri::generate_handler![get_all, get_accounts, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material])
         .on_window_event(|w, event| match event {
             tauri::WindowEvent::Focused(false) => {
-                if !std::env::args().any(|arg| arg == "--inspect") { let _ = w.hide(); }
+                if !std::env::args().any(|arg| arg == "--inspect") {
+                    // Windows may transfer focus before delivering the tray mouse-down.
+                    // Let that event capture visibility before dismissing outside clicks.
+                    let app=w.app_handle().clone();
+                    let generation=app.state::<AppState>().interaction.lock().unwrap().blur();
+                    let window=w.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(150));
+                        let dispatch=app.clone();
+                        let _=app.run_on_main_thread(move || {
+                            let dismiss=dispatch.state::<AppState>().interaction.lock().unwrap().should_dismiss(generation);
+                            if dismiss && !window.is_focused().unwrap_or(false) { hide_popup(dispatch); }
+                        });
+                    });
+                }
             }
-            tauri::WindowEvent::CloseRequested { api, .. } => { api.prevent_close(); let _ = w.hide(); }
+            tauri::WindowEvent::Focused(true) => { w.app_handle().state::<AppState>().interaction.lock().unwrap().cancel(); }
+            tauri::WindowEvent::CloseRequested { api, .. } => { api.prevent_close(); hide_popup(w.app_handle().clone()); }
             _ => {}
         })
         .setup(|app| {
@@ -146,7 +165,20 @@ fn main() {
                 .tooltip("TokenTray — AI usage limits")
                 .menu(&menu).show_menu_on_left_click(false)
                 .on_tray_icon_event(|tray, ev| {
-                    if matches!(ev, TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. }) { show_popup(tray.app_handle()); }
+                    let app=tray.app_handle();
+                    let Some(w)=app.get_webview_window("main") else {return};
+                    match ev {
+                        TrayIconEvent::Click {button:MouseButton::Left,button_state:MouseButtonState::Down,..} | TrayIconEvent::DoubleClick {button:MouseButton::Left,..} => {app.state::<AppState>().interaction.lock().unwrap().press(w.is_visible().unwrap_or(false));}
+                        TrayIconEvent::Click {button:MouseButton::Left,button_state:MouseButtonState::Up,..} => {
+                            let close=app.state::<AppState>().interaction.lock().unwrap().release(w.is_visible().unwrap_or(false));
+                            if close {hide_popup(app.clone());} else {show_popup(app);}
+                        }
+                        TrayIconEvent::Leave {..} => {
+                            let pressed=app.state::<AppState>().interaction.lock().unwrap().is_pressed();
+                            if pressed && !w.is_focused().unwrap_or(false) {hide_popup(app.clone());}
+                        }
+                        _=>{}
+                    }
                 })
                 .on_menu_event(move |app, ev| match ev.id.as_ref() {
                     "open" => show_popup(app), "refresh" => refresh_usage(), "quit" => app.exit(0),
