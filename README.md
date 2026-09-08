@@ -8,6 +8,8 @@ AI agent usage limits, one click from your Windows tray. A compact Fluent flyout
 
 Download `TokenTray-windows-x64` from the private repository's **Actions → Windows → Artifacts**, extract it and run `tokentray.exe`. Windows 10/11 x64 with Microsoft Edge WebView2 Runtime is required. The build is unsigned; signing and an installer are future work.
 
+The popup automatically fits the enabled provider rings and visible content, bounded by the monitor work area. Settings shows available email or username, reported plan and connection state. Account display metadata stays in memory; it is not saved in quota caches. Missing details are explicitly marked as not reported.
+
 Click the tray icon to open the flyout. Click a provider ring to reveal its limit windows. Settings lets you enable or disable each provider; choices survive restarts and disabled providers skip future checks (an in-flight check may finish). Escape returns from Settings or details, then closes the popup. Clicking outside closes it. Right click the tray for Refresh, Start with Windows (opt-in), or Quit. If Windows puts the icon in the overflow, drag it into the visible notification area. `tokentray.exe --show` opens the flyout at launch.
 
 The Acrylic switch in Settings switches to an opaque surface. High-contrast and reduced-transparency browser preferences request the same fallback. Native material rendering varies with Windows version and compositor settings.

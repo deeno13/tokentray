@@ -1,13 +1,13 @@
-# Verification — horizontal rings and settings
+# Verification — automatic sizing and account details
 
-Source build: f05c7b7987ada5996377aad273517ded23ae98ff.
+Source build: 516f5635e93621ce5aae9f4e7f4aef67a0d2a059.
 
-[Windows CI](https://github.com/deeno13/tokentray/actions/runs/34238750979) passed: 17 Rust release tests, 6 JavaScript tests, and Windows x64 release compilation. Settings tests cover default-enabled providers and serialized disabled-provider/appearance preferences. Frontend tests cover filtering, all-disabled state, and existing quota edge cases.
+[Windows CI](https://github.com/deeno13/tokentray/actions/runs/34241172146) passed: 19 Rust release tests, 8 JavaScript tests, and Windows x64 release compilation. New checks cover metadata projection without credentials, invalid/missing metadata, signed-out identity hiding and provider-dependent width.
 
-Browser interaction checks verified all eight rings fit at 760 × 260 CSS pixels, provider details expand and collapse with Escape, a disabled provider stays hidden after reload, settings reflects the saved switch state, all providers can be disabled, and all can be enabled again. Settings layout was inspected. Preview data remains explicitly labelled synthetic.
+Browser checks: eight providers fit at 744 px wide, three at 294 px, and one at the 260 px header minimum. The only space after the provider row was the 1 px window border. Opening details expands the reading width and fits their actual height. Settings shows labelled synthetic account metadata.
 
-The updated native executable launched successfully in normal tray mode. Native tray clicking, popup resizing, settings writes through IPC, and Acrylic switching still need a manual interaction pass; browser tests do not prove those Windows interactions. The previous build's live Codex/Copilot checks remain prior-build evidence, not a fresh test of this binary. The six other adapters still need eligible signed-in sessions for live checks.
+Native Windows checks on the compiled binary: saved three-provider selection rendered in a compact window without the former bottom gap; Settings expanded to its content height and displayed the live Codex email and reported plan. Disabling OpenCode through the native switch, then clicking Back, visibly shrank the popup to two providers. Re-enabled OpenCode and hash-verified the settings file exactly matched its original content, including the user's Acrylic preference. Restarted in normal tray mode after inspection.
 
-Disabled providers skip future quota reads; a request already in flight may finish. Enabling a provider respects existing polling and cooldown behavior. Preferences save to %APPDATA%\TokenTray\config.json. The build remains unsigned.
+The native input pass used --inspect to keep the window open on blur. Tray clicks, light-dismiss and multi-monitor/DPI transitions were not re-tested. Other providers' account metadata still needs eligible signed-in sessions for live validation. Copilot falls back to username when GitHub does not expose an email; GLM's quota source does not report identity or tier. Account metadata is memory-only.
 
-Executable SHA-256: 6a758e95c72e8be06e63ad7301d6d357576e07c7ccde768f6792c4eea7495631
+Executable SHA-256: b71f95899255087b6482d6cbeab4224064272b4782b1cac84a0c369e2cc9fe0b
