@@ -556,7 +556,8 @@ fn read_once(rt: &mut Runtime, prev: &UsageSnapshot) -> UsageSnapshot {
     snap
 }
 
-fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
+fn broadcast(app: &AppHandle, mut snap: UsageSnapshot) {
+    if snap.status == "needsAuth" { snap.windows.clear(); snap.fetched_at = 0; }
     let st = app.state::<AppState>();
     *st.antigravity.lock().unwrap() = snap.clone();
     persist(&snap);

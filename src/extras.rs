@@ -173,7 +173,7 @@ pub fn start(app: AppHandle) {
     #[test] fn no_invented_zero() { for id in IDS { assert!(parse(id,&json!({})).is_err()); } }
     #[test] fn glm_envelope_and_millisecond_reset() {
         assert!(parse("glm",&json!({"code":401,"success":false,"data":{"limits":[{"percentage":0}]}})).is_err());
-        let w = parse("glm",&json!({"code":200,"data":{"limits":[{"unit":3,"number":5,"percentage":12.5,"nextResetTime":1800000000000}]}})).unwrap();
+        let w = parse("glm",&json!({"code":200,"data":{"limits":[{"unit":3,"number":5,"percentage":12.5,"nextResetTime":1800000000000u64}]}})).unwrap();
         assert_eq!(w[0].used,0.125); assert_eq!(w[0].resets_at,Some(1800000000000));
     }
     #[test] fn grok_issuer_boundary() { assert!(grok_token(&json!({"https://auth.x.ai.evil::client":{"key":"synthetic"}})).is_none()); assert_eq!(grok_token(&json!({"https://auth.x.ai::client":{"key":"synthetic"}})),Some("synthetic".into())); }

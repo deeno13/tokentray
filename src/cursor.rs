@@ -36,6 +36,19 @@ pub fn request_refresh() {
     REFRESH.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
+#[cfg(test)] mod tests {
+    use super::*; use serde_json::json;
+    #[test] fn reported_zero_is_a_reading() {
+        let (windows,_) = parse_summary(&json!({"individualUsage":{"plan":{"totalPercentUsed":0}}}));
+        assert_eq!(windows.len(),1); assert_eq!(windows[0].used,0.0);
+        assert!(parse_summary(&json!({})).0.is_empty());
+    }
+    #[test] fn cooldown_skips_credentials_and_network() {
+        let previous=UsageSnapshot{status:"backoff".into(),backoff_until:now_ms()+60000,..Default::default()};
+        let next=read_once(&previous);assert_eq!(next.status,"backoff");assert_eq!(next.backoff_until,previous.backoff_until);
+    }
+}
+
 fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -196,14 +209,16 @@ pub fn parse_summary(v: &serde_json::Value) -> (Vec<LimitWindow>, String) {
 
 enum FetchErr {
     NeedsAuth,
+    RateLimited(u64),
     Other(String),
 }
 
 fn fetch_once(cookie: &str) -> Result<serde_json::Value, FetchErr> {
-    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).build();
+    let agent = ureq::AgentBuilder::new().redirects(0).timeout(Duration::from_secs(15)).build();
     match agent.get(ENDPOINT).set("Cookie", cookie).set("Accept", "application/json").call() {
         Ok(r) => r.into_json::<serde_json::Value>().map_err(|e| FetchErr::Other(format!("parse: {e}"))),
         Err(ureq::Error::Status(401, _)) | Err(ureq::Error::Status(403, _)) => Err(FetchErr::NeedsAuth),
+        Err(ureq::Error::Status(429, r)) => Err(FetchErr::RateLimited(r.header("retry-after").and_then(|s| s.parse().ok()).unwrap_or(300))),
         Err(ureq::Error::Status(code, _)) => Err(FetchErr::Other(format!("HTTP {code}"))),
         Err(e) => Err(FetchErr::Other(format!("{e}"))),
     }
@@ -219,6 +234,7 @@ fn cap(s: &str) -> String {
 
 fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
     let mut snap = prev.clone();
+    if snap.backoff_until > now_ms() { return snap; }
     let Some(creds) = read_credentials() else {
         snap.status = "needsAuth".into();
         snap.note = "Sign in to Cursor (the editor) to see usage.".into();
@@ -226,6 +242,7 @@ fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
     };
     match fetch_once(&creds.cookie) {
         Ok(v) => {
+            snap.backoff_until = 0;
             let (windows, note) = parse_summary(&v);
             snap.fetched_at = now_ms();
             if windows.is_empty() {
@@ -246,6 +263,11 @@ fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
             snap.status = "needsAuth".into();
             snap.note = "Cursor session was rejected — sign in again in the editor".into();
         }
+        Err(FetchErr::RateLimited(seconds)) => {
+            snap.status = if snap.windows.is_empty() { "backoff" } else { "stale" }.into();
+            snap.backoff_until = now_ms().saturating_add(seconds.max(300).saturating_mul(1000));
+            snap.note = "Cursor requested a cooldown. Refresh will wait.".into();
+        }
         Err(FetchErr::Other(msg)) => {
             // Stale beats invented: keep the old reading, marked stale
             snap.status = if snap.windows.is_empty() { "error" } else { "stale" }.into();
@@ -255,7 +277,8 @@ fn read_once(prev: &UsageSnapshot) -> UsageSnapshot {
     snap
 }
 
-fn broadcast(app: &AppHandle, snap: UsageSnapshot) {
+fn broadcast(app: &AppHandle, mut snap: UsageSnapshot) {
+    if snap.status == "needsAuth" { snap.windows.clear(); snap.fetched_at = 0; }
     let st = app.state::<AppState>();
     *st.cursor.lock().unwrap() = snap.clone();
     persist(&snap);

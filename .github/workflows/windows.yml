@@ -16,8 +16,16 @@ jobs:
       - name: Install Rust
         run: rustup update stable --no-self-update
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Rust regression checks
-        run: cargo test
+        run: cargo test --release
+      - name: Preserve resolved dependency versions
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resolved-cargo-lock
+          path: Cargo.lock
       - name: Build portable Windows executable
         run: cargo build --release
       - uses: actions/upload-artifact@v4

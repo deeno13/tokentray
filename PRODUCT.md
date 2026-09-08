@@ -14,7 +14,7 @@ The user wants to inspect AI agent usage allowances from a Windows taskbar notif
 User confirmed all eight README providers: Claude Code, Codex, Cursor, Antigravity, GLM, Grok, OpenCode Go, GitHub Copilot. Private GitHub repository. Credential data stays local to native adapters. Account quotas and derived activity counts must be distinguished. Missing data must remain visibly unavailable.
 
 ## Brand commitments
-User selected TokenTray. Existing products use the name; it is a working private-project name, with public branding undecided. Use CodeNotch's compact, dark usage presentation as the reference.
+User selected TokenTray after initially choosing AgentGauge. Use CodeNotch's compact usage presentation with the user's requested Windows Acrylic material. Public branding remains undecided.
 
 ## Open decisions
 Public distribution, code signing, automatic updates, multi-account support, and activity hooks are future scope.

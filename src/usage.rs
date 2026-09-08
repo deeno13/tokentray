@@ -163,6 +163,7 @@ fn parse_response(v: &serde_json::Value) -> Vec<LimitWindow> {
             let Some(pct) = l.get("percent").and_then(|x| x.as_f64()) else {
                 continue;
             };
+            if !pct.is_finite() || pct < 0.0 { continue; }
             let resets = l.get("resets_at").and_then(parse_reset);
             if resets.is_none() {
                 continue; // upstream rule: a window without a reset time is not shown
@@ -186,6 +187,7 @@ fn parse_response(v: &serde_json::Value) -> Vec<LimitWindow> {
     for (field, id, alias) in aliases {
         let Some(w) = v.get(field) else { continue };
         let Some(u) = w.get("utilization").and_then(|x| x.as_f64()) else { continue };
+        if !u.is_finite() || u < 0.0 { continue; }
         let used = (u / 100.0).clamp(0.0, 1.0);
         let resets_at = w.get("resets_at").and_then(parse_reset);
         let label = label_for(id);
@@ -250,6 +252,7 @@ fn set_and_broadcast(app: &AppHandle, mutate: impl FnOnce(&mut UsageSnapshot)) {
     let snap = {
         let mut u = st.usage.lock().unwrap();
         mutate(&mut u);
+        if u.status == "needsAuth" { u.windows.clear(); u.fetched_at = 0; }
         u.clone()
     };
     persist(&snap);
@@ -300,7 +303,7 @@ pub fn start(app: AppHandle) {
                         Ok(windows) => {
                             consecutive_429 = 0;
                             set_and_broadcast(&app, |u| {
-                                u.status = "ok".into();
+                                u.status = if windows.is_empty() { "unavailable" } else { "ok" }.into();
                                 u.windows = windows;
                                 u.fetched_at = now_ms();
                                 u.note.clear();
@@ -315,11 +318,9 @@ pub fn start(app: AppHandle) {
                             consecutive_429 += 1;
                             let wait = backoff_secs(consecutive_429 - 1, ra);
                             set_and_broadcast(&app, |u| {
-                                if !u.windows.is_empty() {
-                                    u.status = "stale".into();
-                                }
+                                u.status = if u.windows.is_empty() { "backoff" } else { "stale" }.into();
                                 u.note = format!("Rate limited, retrying in {wait}s");
-                                u.backoff_until = now_ms() + wait * 1000;
+                                u.backoff_until = now_ms().saturating_add(wait.saturating_mul(1000));
                             });
                         }
                         Err(FetchErr::Other(msg)) => set_and_broadcast(&app, |u| {
@@ -336,6 +337,16 @@ pub fn start(app: AppHandle) {
             sleep_interruptible(POLL_IDLE_SECS);
         }
     });
+}
+
+#[cfg(test)] mod tests {
+    use super::*; use serde_json::json;
+    #[test] fn duplicate_weekly_alias_is_merged() {
+        let windows = parse_response(&json!({"limits":[{"kind":"weekly_all","percent":20,"resets_at":"2026-09-15T00:00:00Z"}],"seven_day":{"utilization":20,"resets_at":"2026-09-15T00:00:00Z"}}));
+        assert_eq!(windows.len(),1);
+    }
+    #[test] fn missing_and_negative_are_not_zero() { assert!(parse_response(&json!({"five_hour":{"utilization":-1}})).is_empty()); assert!(parse_response(&json!({})).is_empty()); }
+    #[test] fn retry_after_never_lowers_backoff() { assert!(backoff_secs(0,0)>=60); assert!(backoff_secs(3,0)>backoff_secs(0,0)); assert!(backoff_secs(0,3600)>=3600); }
 }
 
 
