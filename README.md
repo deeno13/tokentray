@@ -12,6 +12,8 @@ The popup automatically fits the enabled provider rings and visible content, bou
 
 Click the tray icon to open the flyout; click it again to close it. A 12 logical-pixel gap separates the popup from the taskbar and screen edges, scaled with the monitor DPI and preserved during resizing. Click a provider ring to reveal its limit windows. Settings lets you enable or disable each provider; choices survive restarts and disabled providers skip future checks (an in-flight check may finish). Escape returns from Settings or details, then closes the popup. Clicking outside closes it. Right click the tray for Refresh, Start with Windows (opt-in), or Quit. If Windows puts the icon in the overflow, drag it into the visible notification area. `tokentray.exe --show` opens the flyout at launch.
 
+Settings also has **Start with Windows** (off by default) and **Start minimized to tray** (on by default). The first registers this executable for your Windows sign-in, without administrator access; the second controls whether a new launch opens the popup. Turning minimized startup off opens the popup on both manual and Windows startup launches. Opening the executable while it is already running shows the existing popup; an automatic startup launch leaves that instance undisturbed. Keep the portable executable in a permanent folder before enabling startup; if you move it, switch startup off and on to update its path. The tray menu's startup switch stays in sync with Settings.
+
 The Acrylic switch in Settings switches to an opaque surface. High-contrast and reduced-transparency browser preferences request the same fallback. Native material rendering varies with Windows version and compositor settings.
 
 ## Provider connections
@@ -29,7 +31,7 @@ The Acrylic switch in Settings switches to an opaque surface. High-contrast and 
 
 No new login UI, backend service, telemetry, or key uploads. Credentials never enter the web frontend or repository. Native adapters read existing sessions and contact the corresponding provider directly. Codex owns its own authentication when its app-server is invoked; TokenTray does not manage its credentials. Monitoring starts no AI turns and redeems no reset credits.
 
-Provider and appearance preferences are saved in config.json; quota snapshots are cached under `%APPDATA%\TokenTray`; no prompts or answers are saved. Antigravity's inherited fallback scans local activity logs to derive a count. Stale readings retain their timestamp. Windows-native credentials are supported; WSL-only sign-ins and multiple accounts need later work.
+Provider, appearance and minimized-start preferences are saved in config.json; quota snapshots are cached under `%APPDATA%\TokenTray`; no prompts or answers are saved. Antigravity's inherited fallback scans local activity logs to derive a count. Stale readings retain their timestamp. Windows-native credentials are supported; WSL-only sign-ins and multiple accounts need later work.
 
 ## Develop and verify
 
