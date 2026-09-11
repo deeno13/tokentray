@@ -47,6 +47,11 @@ fn get_settings(state: tauri::State<AppState>) -> config::Settings { state.setti
 #[tauri::command]
 fn save_settings(state: tauri::State<AppState>, settings: config::Settings) -> Result<(), String> {
     let mut current = state.settings.lock().unwrap();
+    // Older builds registered --silent. Refresh an enabled entry when this
+    // preference changes so Windows launches respect it and use this executable.
+    if settings.start_minimized != current.start_minimized && autostart::is_enabled() {
+        autostart::enable()?;
+    }
     settings.save()?;
     let newly_enabled: Vec<_> = config::PROVIDERS.into_iter().filter(|id| !current.enabled(id) && settings.enabled(id)).collect();
     *current = settings;
