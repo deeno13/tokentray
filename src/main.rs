@@ -15,6 +15,7 @@ use tauri::{AppHandle, Manager};
 use usage::UsageSnapshot;
 
 pub struct AppState {
+    startup_menu: Mutex<Option<tauri::menu::CheckMenuItem<tauri::Wry>>>,
     interaction: Mutex<popup::Interaction>,
     accounts: Mutex<BTreeMap<String, account::Account>>,
     settings: Mutex<config::Settings>,
@@ -27,6 +28,20 @@ pub struct AppState {
 }
 
 pub fn provider_enabled(app: &AppHandle, id: &str) -> bool { app.state::<AppState>().settings.lock().unwrap().enabled(id) }
+#[tauri::command]
+fn get_startup() -> bool { autostart::is_enabled() }
+#[tauri::command]
+fn set_startup(app: AppHandle, enabled: bool) -> Result<bool, String> {
+    let result=if enabled {autostart::enable()} else {autostart::disable()};
+    let actual=autostart::is_enabled();
+    let menu=app.state::<AppState>().startup_menu.lock().unwrap().clone();
+    if let Some(menu)=menu {let _=menu.set_checked(actual);}
+    use tauri::Emitter;
+    let _=app.emit("startup-changed",actual);
+    result?;
+    if actual!=enabled {return Err("Windows did not apply the startup setting.".into());}
+    Ok(actual)
+}
 #[tauri::command]
 fn get_settings(state: tauri::State<AppState>) -> config::Settings { state.settings.lock().unwrap().clone() }
 #[tauri::command]
@@ -120,8 +135,12 @@ fn main() {
     let data = config::config_path();
     if let Some(parent) = data.parent() { let _ = std::fs::create_dir_all(parent); }
     tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _, _| show_popup(app)))
+        .plugin(tauri_plugin_single_instance::init(|app, args, _| {
+            let minimized=app.state::<AppState>().settings.lock().unwrap().start_minimized;
+            if autostart::should_show(&args,minimized,true) {show_popup(app);}
+        }))
         .manage(AppState {
+            startup_menu: Mutex::new(None),
             interaction: Mutex::new(popup::Interaction::default()),
             accounts: Mutex::new(BTreeMap::new()),
             settings: Mutex::new(config::Settings::load()),
@@ -130,7 +149,7 @@ fn main() {
             cursor: Mutex::new(cursor::load_persisted()), antigravity: Mutex::new(antigravity::load_persisted()),
             extras: Mutex::new(extras::load_persisted()),
         })
-        .invoke_handler(tauri::generate_handler![get_all, get_accounts, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material])
+        .invoke_handler(tauri::generate_handler![get_startup, set_startup, get_all, get_accounts, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material])
         .on_window_event(|w, event| match event {
             tauri::WindowEvent::Focused(false) => {
                 if !std::env::args().any(|arg| arg == "--inspect") {
@@ -158,6 +177,7 @@ fn main() {
             let open = MenuItem::with_id(app, "open", "Open TokenTray", true, None::<&str>)?;
             let refresh = MenuItem::with_id(app, "refresh", "Refresh usage", true, None::<&str>)?;
             let auto = CheckMenuItem::with_id(app, "autostart", "Start with Windows", true, autostart::is_enabled(), None::<&str>)?;
+            *app.state::<AppState>().startup_menu.lock().unwrap()=Some(auto.clone());
             let quit = MenuItem::with_id(app, "quit", "Quit TokenTray", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &refresh, &auto, &quit])?;
             TrayIconBuilder::with_id("main")
@@ -183,8 +203,7 @@ fn main() {
                 .on_menu_event(move |app, ev| match ev.id.as_ref() {
                     "open" => show_popup(app), "refresh" => refresh_usage(), "quit" => app.exit(0),
                     "autostart" => {
-                        let result = if autostart::is_enabled() { autostart::disable() } else { autostart::enable() };
-                        let _ = auto.set_checked(autostart::is_enabled());
+                        let result = set_startup(app.clone(),!autostart::is_enabled());
                         if result.is_err() { use tauri::Emitter; let _ = app.emit("notice", "Could not change Windows startup. Try again from the tray menu."); show_popup(app); }
                     }
                     _ => {}
@@ -196,7 +215,8 @@ fn main() {
             // This explicit developer mode exposes the same flyout for inspection.
             let inspect = std::env::args().any(|arg| arg == "--inspect");
             if inspect { if let Some(w) = app.get_webview_window("main") { let _ = w.set_skip_taskbar(false); } }
-            if inspect || std::env::args().any(|arg| arg == "--show") { show_popup(app.handle()); }
+            let minimized=app.state::<AppState>().settings.lock().unwrap().start_minimized;
+            if autostart::should_show(&std::env::args().collect::<Vec<_>>(),minimized,false) { show_popup(app.handle()); }
             Ok(())
         })
         .run(tauri::generate_context!()).expect("TokenTray could not start");

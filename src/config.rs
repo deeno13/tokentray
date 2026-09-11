@@ -4,8 +4,8 @@ pub const PROVIDERS: [&str; 8] = ["codex","claude","cursor","antigravity","glm",
 pub fn config_path() -> PathBuf { dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("TokenTray").join("config.json") }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct Settings { pub disabled: BTreeSet<String>, pub acrylic: bool }
-impl Default for Settings { fn default() -> Self { Self { disabled: BTreeSet::new(), acrylic: true } } }
+pub struct Settings { pub disabled: BTreeSet<String>, pub acrylic: bool, pub start_minimized: bool }
+impl Default for Settings { fn default() -> Self { Self { disabled: BTreeSet::new(), acrylic: true, start_minimized: true } } }
 impl Settings {
     pub fn enabled(&self, id: &str) -> bool { PROVIDERS.contains(&id) && !self.disabled.contains(id) }
     pub fn load() -> Self { std::fs::read(config_path()).ok().and_then(|bytes| serde_json::from_slice(&bytes).ok()).unwrap_or_default() }
@@ -19,6 +19,6 @@ impl Settings {
 }
 #[cfg(test)] mod tests {
     use super::*;
-    #[test] fn defaults_enable_all_providers() { let s: Settings = serde_json::from_str("{}").unwrap(); for id in PROVIDERS { assert!(s.enabled(id)); } assert!(!s.enabled("unknown")); }
-    #[test] fn disabled_providers_survive_round_trip() { let mut s = Settings::default(); s.disabled.insert("codex".into()); s.acrylic = false; let restored: Settings = serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap(); assert!(!restored.enabled("codex")); assert!(restored.enabled("claude")); assert!(!restored.acrylic); }
+    #[test] fn defaults_enable_all_providers() { let s: Settings = serde_json::from_str("{}").unwrap(); for id in PROVIDERS { assert!(s.enabled(id)); } assert!(!s.enabled("unknown")); assert!(s.start_minimized); }
+    #[test] fn disabled_providers_survive_round_trip() { let mut s = Settings::default(); s.disabled.insert("codex".into()); s.acrylic = false; s.start_minimized = false; let restored: Settings = serde_json::from_slice(&serde_json::to_vec(&s).unwrap()).unwrap(); assert!(!restored.enabled("codex")); assert!(restored.enabled("claude")); assert!(!restored.acrylic); assert!(!restored.start_minimized); }
 }

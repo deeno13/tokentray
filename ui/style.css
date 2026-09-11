@@ -4,3 +4,5 @@
 @media(forced-colors:active){:root,.native-acrylic,.native-acrylic body{background:Canvas;color:CanvasText}.fill{stroke:Highlight!important}.track{stroke:GrayText!important}.setting input{appearance:auto;width:24px;height:24px}.setting input:before{display:none}.provider[aria-expanded=true]{outline:1px solid Highlight}}
 
 .setting-copy{display:flex;flex-direction:column;gap:3px;min-width:0;padding:7px 0}.setting-name{font-weight:600}.account-details{font-size:11px;color:var(--muted);line-height:1.45;overflow-wrap:anywhere}.window-heading>span{overflow-wrap:anywhere}.provider-body>:last-child{margin-bottom:0}.empty{margin:0;padding:12px 8px}.settings-hint:last-child{margin-bottom:0}
+
+.startup-settings{border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px}

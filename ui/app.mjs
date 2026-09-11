@@ -2,8 +2,9 @@ import {PROVIDERS,percent,resetText,statusText,ageText,visibleWindows,enabledPro
 const native = !!window.__TAURI__;
 const invoke = (name,args) => window.__TAURI__.core.invoke(name,args);
 const $ = id => document.getElementById(id);
-let accounts = {};
-let snapshots = {}, settings = {disabled:[],acrylic:true}, selected = null, settingsOpen = false;
+let accounts = {}, startupEnabled=false, startupAvailable=!native;
+function setSettingsBusy(busy){document.querySelectorAll('#settings-page input').forEach(el=>el.disabled=busy);$('startup').disabled=busy||!startupAvailable;}
+let snapshots = {}, settings = {disabled:[],acrylic:true,start_minimized:true}, selected = null, settingsOpen = false;
 function node(tag, className, text) { const n=document.createElement(tag); if(className)n.className=className; if(text!=null)n.textContent=text; return n; }
 function notice(message) { $('notice').textContent=message; $('notice').hidden=!message;resize(); }
 function render() {
@@ -84,14 +85,16 @@ function renderSettings() {
   for(const provider of PROVIDERS) {
     const label=node('label','setting');const input=node('input');input.type='checkbox';input.checked=!settings.disabled.includes(provider.id);
     input.addEventListener('change',async()=>{
-      document.querySelectorAll('#settings-page input').forEach(el=>el.disabled=true);
+      setSettingsBusy(true);
       const disabled=new Set(settings.disabled);if(input.checked)disabled.delete(provider.id);else disabled.add(provider.id);
       try { await persist({...settings,disabled:[...disabled]});notice(''); } catch { input.checked=!input.checked;notice('Could not save settings. Try again.'); }
-      document.querySelectorAll('#settings-page input').forEach(el=>el.disabled=false);
+      setSettingsBusy(false);
     });
     const copy=node('span','setting-copy');const name=node('span','setting-name',provider.name);const meta=node('span','account-details');meta.id='account-'+provider.id;input.setAttribute('aria-label',provider.name);input.setAttribute('aria-describedby',meta.id);copy.append(name,meta);label.append(copy,input);$('provider-settings').append(label);
   }
   $('acrylic').checked=settings.acrylic;
+  $('start-minimized').checked=settings.start_minimized!==false;
+  $('startup').checked=startupEnabled;setSettingsBusy(false);
 }
 async function material() {
   const dark=matchMedia('(prefers-color-scheme: dark)').matches;
@@ -99,7 +102,19 @@ async function material() {
   const applied=native ? await invoke('set_material',{enabled:allow,dark}).catch(()=>false) : false;
   document.documentElement.classList.toggle('native-acrylic',applied&&allow);
 }
-$('acrylic').addEventListener('change',async()=>{const input=$('acrylic');document.querySelectorAll('#settings-page input').forEach(el=>el.disabled=true);try{await persist({...settings,acrylic:input.checked});await material();}catch{input.checked=settings.acrylic;notice('Could not save appearance. Try again.');}finally{document.querySelectorAll('#settings-page input').forEach(el=>el.disabled=false); }});
+$('startup').addEventListener('change',async()=>{
+  setSettingsBusy(true);
+  try{const enabled=$('startup').checked;startupEnabled=native?await invoke('set_startup',{enabled}):enabled;notice(native?'':'Preview only. Windows startup was not changed.');}
+  catch{notice('Could not change Windows startup. Try again.');}
+  finally{$('startup').checked=startupEnabled;setSettingsBusy(false);}
+});
+$('start-minimized').addEventListener('change',async()=>{
+  setSettingsBusy(true);
+  try{await persist({...settings,start_minimized:$('start-minimized').checked});notice('');}
+  catch{$('start-minimized').checked=settings.start_minimized!==false;notice('Could not save launch preference. Try again.');}
+  finally{setSettingsBusy(false);}
+});
+$('acrylic').addEventListener('change',async()=>{const input=$('acrylic');setSettingsBusy(true);try{await persist({...settings,acrylic:input.checked});await material();}catch{input.checked=settings.acrylic;notice('Could not save appearance. Try again.');}finally{setSettingsBusy(false); }});
 for(const query of ['(prefers-color-scheme: dark)','(forced-colors: active)','(prefers-reduced-transparency: reduce)'])matchMedia(query).addEventListener('change',material);
 $('settings').addEventListener('click',()=>showSettings(!settingsOpen));$('back').addEventListener('click',()=>showSettings(false));
 async function hide() { if(native)await invoke('hide_popup').catch(()=>notice('Could not close popup. Use the tray menu to quit.'));else notice('Browser preview. The Windows app closes to its tray icon.'); }
@@ -114,6 +129,8 @@ $('refresh').addEventListener('click',async()=>{
 if(native){
   try {
     settings=await invoke('get_settings');
+    await window.__TAURI__.event.listen('startup-changed',e=>{startupEnabled=e.payload;$('startup').checked=startupEnabled;});
+    try{startupEnabled=await invoke('get_startup');startupAvailable=true;}catch{notice('Could not read Windows startup settings.');}
     await window.__TAURI__.event.listen('accounts',e=>{accounts=e.payload;updateAccounts();resize();});
     accounts=await invoke('get_accounts');
     for(const p of PROVIDERS)await window.__TAURI__.event.listen(p.id==='claude'?'usage':p.id,e=>{snapshots[p.id]=e.payload;render();});
@@ -121,7 +138,7 @@ if(native){
     snapshots=await invoke('get_all');
   }catch{notice('Could not load usage or settings. Restart TokenTray to reconnect.');}
 }else{
-  try{const saved=JSON.parse(localStorage.getItem('tokentray-settings'));if(saved&&Array.isArray(saved.disabled))settings={disabled:saved.disabled,acrylic:saved.acrylic!==false};}catch{}
+  try{const saved=JSON.parse(localStorage.getItem('tokentray-settings'));if(saved&&Array.isArray(saved.disabled))settings={disabled:saved.disabled,acrylic:saved.acrylic!==false,start_minimized:saved.start_minimized!==false};}catch{}
   $('preview').hidden=false;
   snapshots=Object.fromEntries(PROVIDERS.map(p=>[p.id,{status:'needsAuth',windows:[],fetched_at:0}]));
   accounts={codex:{email:'alex@example.com',plan:'plus'},claude:{email:'alex@example.com',plan:'max'},copilot:{username:'alex-dev',plan:'individual'}};
