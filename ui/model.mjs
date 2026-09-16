@@ -10,8 +10,8 @@ export const PROVIDERS = [
 ];
 export function percent(w) { return w && w.count == null && Number.isFinite(w.used) && w.used >= 0 ? Math.round(w.used * 100) : null; }
 export function resetText(at, now=Date.now()) {
-  if (!Number.isFinite(at) || at <= 0) return 'Reset time unavailable';
-  if (at <= now) return 'Reset due · awaiting refresh';
+  if (!Number.isFinite(at) || at <= 0) return 'Reset unavailable';
+  if (at <= now) return 'awaiting refresh';
   const minutes = Math.ceil((at-now)/60000);
   if (minutes < 60) return `Resets in ${minutes}m`;
   const hours = Math.floor(minutes/60), rest = minutes%60;
@@ -23,7 +23,7 @@ export function statusText(s, now=Date.now()) {
   if (s.status === 'ok' && s.fetched_at && now-s.fetched_at > 360000) return 'Stale';
   return ({ok:'Updated',stale:'Stale',needsAuth:'Sign-in needed',absent:'Not connected',unavailable:'Unavailable',error:'Connection error',backoff:'Cooling down',derived:'Activity count'})[s.status] || 'Unavailable';
 }
-export function ageText(at, now=Date.now()) { if (!at) return 'Not read yet'; const m=Math.max(0,Math.floor((now-at)/60000)); return m<1?'Updated just now': m<60?`Updated ${m}m ago`:`Updated ${Math.floor(m/60)}h ago`; }
+export function ageText(at, now=Date.now()) { if (!at) return 'Not read yet'; const m=Math.max(0,Math.floor((now-at)/60000)); return m<1?'Just now': m<60?`${m}m ago`:`${Math.floor(m/60)}h ago`; }
 export function visibleWindows(s) { return ['needsAuth','absent'].includes(s?.status) ? [] : (s?.windows || []); }
 
 export function enabledProviders(settings) { const disabled=new Set(settings?.disabled ?? []);return PROVIDERS.filter(p=>!disabled.has(p.id)); }
@@ -31,8 +31,9 @@ export function enabledProviders(settings) { const disabled=new Set(settings?.di
 export function popupWidth(count,settings=false,details=false){return settings?440:Math.max(details?380:260,24+Math.max(0,count)*90);}
 export function accountText(account,snapshot,disabled=false){
   const state=disabled?'Paused':statusText(snapshot);
-  if(['needsAuth','absent'].includes(snapshot?.status))return state+' · Account details unavailable';
+  if(['needsAuth','absent'].includes(snapshot?.status))return state;
   const identity=account?.email||(account?.username?'@'+account.username:null)||'Account not reported';
   const plan=account?.plan?account.plan+' plan':'Plan not reported';
+  if(state==='Updated')return identity+' · '+plan;
   return identity+' · '+plan+' · '+state;
 }
