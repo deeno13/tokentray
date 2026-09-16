@@ -7,18 +7,18 @@
     <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v5h16v-5M7 5h10M7 9h10M9 13h6"/></svg><h1>TokenTray</h1></div>
     <div class="actions"><button id="refresh" aria-label="Refresh usage" title="Refresh usage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></svg></button><button id="settings" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings-page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M9 4v6M15 14v6"/></svg></button><button id="close" aria-label="Close popup" title="Close popup (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
   </header>
-  <div id="preview" hidden>Design preview · sample data</div>
+  <div id="preview" hidden>Preview · sample data</div>
   <div id="notice" role="status" hidden></div>
   <section id="overview" aria-label="Usage overview"><div id="providers" aria-label="Providers"></div><section id="detail" aria-label="Provider details" hidden></section></section>
   <section id="settings-page" aria-label="Settings" hidden>
-    <div class="settings-heading"><button id="back">Back</button><h2>Settings</h2></div>
+    <div class="settings-heading"><button id="back" aria-label="Back">←</button><h2>Settings</h2></div>
     <div class="startup-settings">
-      <label class="setting"><span class="setting-copy"><span class="setting-name">Start with Windows</span><span class="account-details" id="startup-hint">Launch TokenTray when you sign in.</span></span><input id="startup" type="checkbox" aria-label="Start with Windows" aria-describedby="startup-hint" disabled></label>
-      <label class="setting"><span class="setting-copy"><span class="setting-name">Start minimized to tray</span><span class="account-details" id="minimized-hint">Keep the popup closed when TokenTray starts.</span></span><input id="start-minimized" type="checkbox" aria-label="Start minimized to tray" aria-describedby="minimized-hint" checked></label>
+      <label class="setting"><span class="setting-copy"><span class="setting-name">Start with Windows</span></span><input id="startup" type="checkbox" aria-label="Start with Windows" disabled></label>
+      <label class="setting"><span class="setting-copy"><span class="setting-name">Start minimized to tray</span></span><input id="start-minimized" type="checkbox" aria-label="Start minimized to tray" checked></label>
     </div>
-    <p class="settings-hint">Choose providers to show and check for usage.</p>
+    <p class="settings-hint">Choose providers to monitor.</p>
     <div id="provider-settings"></div>
-    <label class="setting appearance"><span>Windows Acrylic</span><input id="acrylic" type="checkbox" checked></label>
-    <p class="settings-hint">Changes save automatically. A check already in progress may finish.</p>
+    <label class="setting appearance"><span>Acrylic effect</span><input id="acrylic" type="checkbox" checked></label>
+    <p class="settings-hint">Changes save automatically.</p>
   </section>
 </main><script type="module" src="app.mjs"></script></body></html>

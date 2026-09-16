@@ -16,12 +16,14 @@ function render() {
     const button=node('button', 'provider '+provider.id); button.type='button';
     button.setAttribute('aria-expanded',String(selected===provider.id));button.setAttribute('aria-controls','detail');
     const value=windows[0]?.count!=null?'~'+windows[0].count:p==null?'—':p+'%';
-    button.setAttribute('aria-label',provider.name+': '+(p==null?statusText(s):value+' used, '+statusText(s))+'. Show details');
+    button.setAttribute('aria-label',provider.name+': '+(p==null?statusText(s):value+', '+statusText(s))+'. Show details');
     const ring=node('span','ring');
     const ns='http://www.w3.org/2000/svg', svg=document.createElementNS(ns,'svg'); svg.setAttribute('viewBox','0 0 64 64');svg.setAttribute('aria-hidden','true');
     for(const type of ['track','fill']) { const c=document.createElementNS(ns,'circle');c.setAttribute('cx','32');c.setAttribute('cy','32');c.setAttribute('r','28');c.setAttribute('class',type);if(type==='fill')c.setAttribute('stroke-dasharray',Math.min(100,p??0)*1.7593+' 175.93');svg.append(c); }
     ring.append(svg,node('strong','value',value));
-    button.append(ring,node('span','provider-name',provider.name),node('span','provider-status',p==null?statusText(s):statusText(s)==='Updated'?'used':statusText(s)));
+    button.append(ring,node('span','provider-name',provider.name));
+    const st=statusText(s);
+    if(st!=='Updated')button.append(node('span','provider-status',st));
     button.addEventListener('click',()=>{selected=selected===provider.id?null:provider.id;render();resize();});
     fragment.append(button);
   }
@@ -33,13 +35,14 @@ function render() {
   $('detail').replaceChildren();$('detail').hidden=!selected;
   if(selected) {
     const provider=PROVIDERS.find(p=>p.id===selected), s=snapshots[selected], windows=visibleWindows(s);
-    const body=node('div','provider-body'); body.append(node('h2','',provider.name),node('p','guidance',statusText(s)));
+    const body=node('div','provider-body'); body.append(node('h2','',provider.name));
+    if(statusText(s)!=='Updated')body.append(node('p','guidance',statusText(s)));
     if(!windows.length)body.append(node('p','guidance',provider.help));
     for(const w of windows) {
       const row=node('div','window');const line=node('div','window-heading');const p=percent(w);
-      line.append(node('span','',w.label),node('strong','',w.count!=null?`~${w.count} counted`:p==null?'Unavailable':`${p}% used`));row.append(line);
-      if(p!=null) { const progress=node('progress');progress.max=100;progress.value=Math.min(100,p);progress.setAttribute('aria-label',`${provider.name}, ${w.label}: ${p}% used`);row.append(progress); }
-      const reset=node('span','reset',w.count!=null?'Derived activity · no quota percentage':resetText(w.resets_at));
+      line.append(node('span','',w.label),node('strong','',w.count!=null?`~${w.count}`:p==null?'—':`${p}%`));row.append(line);
+      if(p!=null) { const progress=node('progress');progress.max=100;progress.value=Math.min(100,p);progress.setAttribute('aria-label',`${provider.name}, ${w.label}: ${p}%`);row.append(progress); }
+      const reset=node('span','reset',w.count!=null?'Activity only':resetText(w.resets_at));
       if(w.resets_at)reset.title=new Date(w.resets_at).toLocaleString();row.append(reset);body.append(row);
     }
     if(s?.note && s.note!=='Codex app-server')body.append(node('p','guidance',s.note));
