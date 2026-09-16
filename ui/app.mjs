@@ -58,7 +58,7 @@ function resize() {
   resizeFrame=requestAnimationFrame(async()=>{
     resizeFrame=0;
     if(resizing){resizeAgain=true;return;}
-    const width=popupWidth(enabledProviders(settings).length,settingsOpen,!!selected);
+    const width=popupWidth(enabledProviders(settings).length,settingsOpen);
     document.documentElement.style.setProperty('--popup-width',width+'px');
     const content=settingsOpen?$('settings-page'):$('overview');
     const header=document.querySelector('header').getBoundingClientRect().height;
