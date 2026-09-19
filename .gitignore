@@ -5,3 +5,4 @@
 !.env.example
 /artifacts/
 /ui-test-results/
+/gen/schemas/
