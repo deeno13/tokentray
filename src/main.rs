@@ -20,6 +20,7 @@ pub struct AppState {
     accounts: Mutex<BTreeMap<String, account::Account>>,
     settings: Mutex<config::Settings>,
     popup_size: Mutex<(u32, u32)>,
+    popup_monitor: Mutex<Option<tauri::PhysicalPosition<f64>>>,
     usage: Mutex<UsageSnapshot>,
     codex: Mutex<UsageSnapshot>,
     cursor: Mutex<UsageSnapshot>,
@@ -60,20 +61,47 @@ fn save_settings(state: tauri::State<AppState>, settings: config::Settings) -> R
     Ok(())
 }
 #[tauri::command]
-fn resize_popup(app: AppHandle, width: u32, height: u32) {
-    let (width, height) = (width.clamp(240, 1000), height.clamp(80, 1200));
-    *app.state::<AppState>().popup_size.lock().unwrap() = (width, height);
-    let Some(w) = app.get_webview_window("main") else { return };
-    if let Ok(Some(mon)) = w.current_monitor() {
-        let area = mon.work_area(); let scale = mon.scale_factor();
-        let width = (width as f64 * scale).round().min(area.size.width as f64) as u32;
-        let height = (height as f64 * scale).round().min(area.size.height as f64) as u32;
-        let pos = w.outer_position().unwrap_or(area.position);
-        let old = w.outer_size().unwrap_or_default();
-        let p=popup::fit((area.position.x,area.position.y),(area.size.width,area.size.height),(pos.x,pos.y+old.height as i32-height as i32),(width,height),scale);
-        let _ = w.set_size(tauri::PhysicalSize::new(p.width,p.height));
-        let _ = w.set_position(tauri::PhysicalPosition::new(p.x,p.y));
+fn resize_popup(app: AppHandle, width: u32, height: u32) -> Result<(), String> {
+    *app.state::<AppState>().popup_size.lock().unwrap() =
+        (width.clamp(240, 1000), height.clamp(80, 1200));
+    position_popup(&app, None)
+}
+
+// A point inside the selected monitor keeps content resizes on that display,
+// while resolving its current work area and DPI afresh each time.
+fn position_popup(
+    app: &AppHandle,
+    target: Option<tauri::PhysicalPosition<f64>>,
+) -> Result<(), String> {
+    let window = app.get_webview_window("main").ok_or("Popup window unavailable")?;
+    let state = app.state::<AppState>();
+    let target = target.or(*state.popup_monitor.lock().unwrap());
+    let monitor = target.and_then(|point| app.monitor_from_point(point.x, point.y).ok().flatten())
+        .or_else(|| app.primary_monitor().ok().flatten())
+        .or_else(|| window.current_monitor().ok().flatten())
+        .ok_or("Popup monitor unavailable")?;
+    let area = monitor.work_area();
+    *state.popup_monitor.lock().unwrap() = Some(tauri::PhysicalPosition::new(
+        area.position.x as f64 + area.size.width as f64 / 2.0,
+        area.position.y as f64 + area.size.height as f64 / 2.0,
+    ));
+    let logical_size = *state.popup_size.lock().unwrap();
+    let placement = popup::bottom_right(
+        (area.position.x, area.position.y),
+        (area.size.width, area.size.height),
+        logical_size,
+        monitor.scale_factor(),
+    );
+    let position = tauri::PhysicalPosition::new(placement.x, placement.y);
+    let size = tauri::PhysicalSize::new(placement.width, placement.height);
+    // Move first so Windows applies the destination monitor's DPI before sizing.
+    if window.outer_position().ok() != Some(position) {
+        window.set_position(position).map_err(|_| "Could not position popup")?;
     }
+    if window.inner_size().ok() != Some(size) {
+        window.set_size(size).map_err(|_| "Could not resize popup")?;
+    }
+    Ok(())
 }
 
 // Upstream adapters call this with provider error details. Deliberately discard
@@ -118,22 +146,17 @@ fn set_material(app: AppHandle, enabled: bool, dark: bool) -> bool {
 
 fn show_popup(app: &AppHandle) {
     app.state::<AppState>().interaction.lock().unwrap().cancel();
-    let Some(w) = app.get_webview_window("main") else { return };
-    let (width, height) = *app.state::<AppState>().popup_size.lock().unwrap();
-    // Tray click coordinates and monitor working areas are physical pixels.
-    let cursor = app.cursor_position().unwrap_or_default();
-    if let Ok(Some(mon)) = app.monitor_from_point(cursor.x, cursor.y) {
-        let area = mon.work_area();
-        let scale = mon.scale_factor();
-        let width = (width as f64 * scale).round().min(area.size.width as f64) as u32;
-        let height = (height as f64 * scale).round().min(area.size.height as f64) as u32;
-        let desired=(cursor.x as i32-width as i32/2,cursor.y as i32-height as i32-(12.0*scale).round() as i32);
-        let p=popup::fit((area.position.x,area.position.y),(area.size.width,area.size.height),desired,(width,height),scale);
-        let _ = w.set_size(tauri::PhysicalSize::new(p.width,p.height));
-        let _ = w.set_position(tauri::PhysicalPosition::new(p.x,p.y));
-    }
-    let _ = w.show();
-    let _ = w.set_focus();
+    let Some(window) = app.get_webview_window("main") else { return };
+    // Tauri's tray rectangle is physical, including in the Windows overflow.
+    // Opening from the menu or a repeat launch uses the same monitor as a click.
+    let target = app.tray_by_id("main").and_then(|tray| tray.rect().ok().flatten()).map(|rect| {
+        let position = rect.position.to_physical::<f64>(1.0);
+        let size = rect.size.to_physical::<f64>(1.0);
+        tauri::PhysicalPosition::new(position.x + size.width / 2.0, position.y + size.height / 2.0)
+    });
+    let _ = position_popup(app, target);
+    let _ = window.show();
+    let _ = window.set_focus();
 }
 
 fn main() {
@@ -149,7 +172,8 @@ fn main() {
             interaction: Mutex::new(popup::Interaction::default()),
             accounts: Mutex::new(BTreeMap::new()),
             settings: Mutex::new(config::Settings::load()),
-            popup_size: Mutex::new((744, 182)),
+            popup_size: Mutex::new(popup::INITIAL_SIZE),
+            popup_monitor: Mutex::new(None),
             usage: Mutex::new(usage::load_persisted()), codex: Mutex::new(codex::load_persisted()),
             cursor: Mutex::new(cursor::load_persisted()), antigravity: Mutex::new(antigravity::load_persisted()),
             extras: Mutex::new(extras::load_persisted()),
@@ -173,7 +197,12 @@ fn main() {
                     });
                 }
             }
-            tauri::WindowEvent::Focused(true) => { w.app_handle().state::<AppState>().interaction.lock().unwrap().cancel(); }
+            tauri::WindowEvent::ScaleFactorChanged { .. } => {
+                let app = w.app_handle().clone();
+                let dispatch = app.clone();
+                let _ = app.run_on_main_thread(move || { let _ = position_popup(&dispatch, None); });
+            }
+            tauri::WindowEvent::Focused(true) => { w.app_handle().state::<AppState>().interaction.lock().unwrap().refocus(); }
             tauri::WindowEvent::CloseRequested { api, .. } => { api.prevent_close(); hide_popup(w.app_handle().clone()); }
             _ => {}
         })
@@ -193,13 +222,19 @@ fn main() {
                     let app=tray.app_handle();
                     let Some(w)=app.get_webview_window("main") else {return};
                     match ev {
-                        TrayIconEvent::Click {button:MouseButton::Left,button_state:MouseButtonState::Down,..} | TrayIconEvent::DoubleClick {button:MouseButton::Left,..} => {app.state::<AppState>().interaction.lock().unwrap().press(w.is_visible().unwrap_or(false));}
+                        TrayIconEvent::Click {button:MouseButton::Left,button_state:MouseButtonState::Down,..} => {
+                            app.state::<AppState>().interaction.lock().unwrap().press(w.is_visible().unwrap_or(false));
+                        }
+                        TrayIconEvent::DoubleClick {button:MouseButton::Left,..} => {
+                            // The second release should keep the popup open.
+                            app.state::<AppState>().interaction.lock().unwrap().press(false);
+                        }
                         TrayIconEvent::Click {button:MouseButton::Left,button_state:MouseButtonState::Up,..} => {
                             let close=app.state::<AppState>().interaction.lock().unwrap().release(w.is_visible().unwrap_or(false));
                             if close {hide_popup(app.clone());} else {show_popup(app);}
                         }
                         TrayIconEvent::Leave {..} => {
-                            let pressed=app.state::<AppState>().interaction.lock().unwrap().is_pressed();
+                            let pressed=app.state::<AppState>().interaction.lock().unwrap().leave();
                             if pressed && !w.is_focused().unwrap_or(false) {hide_popup(app.clone());}
                         }
                         _=>{}

@@ -1,6 +1,6 @@
 # TokenTray
 
-AI agent usage limits, one click from your Windows tray. A compact Fluent flyout with native Windows Acrylic, light/dark appearance, a horizontal row of progress rings and reset countdowns.
+AI agent usage limits, one click from your Windows tray. A compact Fluent flyout with native Windows Acrylic, light/dark appearance, a compact grid of progress rings and reset countdowns.
 
 **Early development build.** Eight provider adapters are implemented; availability depends on each installed tool, account and endpoint. Internal provider endpoints may change. Missing data is shown as unavailable, never as zero usage.
 
@@ -8,9 +8,9 @@ AI agent usage limits, one click from your Windows tray. A compact Fluent flyout
 
 Download `TokenTray-windows-x64` from the private repository's **Actions → Windows → Artifacts**, extract it and run `tokentray.exe`. Windows 10/11 x64 with Microsoft Edge WebView2 Runtime is required. The build is unsigned; signing and an installer are future work.
 
-The popup automatically fits the enabled provider rings and visible content, bounded by the monitor work area. Settings shows available email or username, reported plan and connection state. Account display metadata stays in memory; it is not saved in quota caches. Missing details are explicitly marked as not reported.
+The popup keeps a consistent 440 logical-pixel width across overview, details and Settings. Provider rings wrap into rows of up to four; height follows the visible content, with scrolling when needed to fit the monitor work area. Settings shows available email or username, reported plan and connection state. Account display metadata stays in memory; it is not saved in quota caches. Missing details are explicitly marked as not reported.
 
-Click the tray icon to open the flyout; click it again to close it. A 12 logical-pixel gap separates the popup from the taskbar and screen edges, scaled with the monitor DPI and preserved during resizing. Click a provider ring to reveal its limit windows. Settings lets you enable or disable each provider; choices survive restarts and disabled providers skip future checks (an in-flight check may finish). Escape returns from Settings or details, then closes the popup. Clicking outside closes it. Right click the tray for Refresh, Start with Windows (opt-in), or Quit. If Windows puts the icon in the overflow, drag it into the visible notification area. `tokentray.exe --show` opens the flyout at launch.
+Click the tray icon to open the flyout; click it again to close it. It opens at the bottom-right of the tray monitor, with a 12 logical-pixel gap from the taskbar and screen edges. This gap scales with the monitor DPI and stays anchored when the content changes. Click a provider ring to reveal its limit windows. Settings lets you enable or disable each provider; choices survive restarts and disabled providers skip future checks (an in-flight check may finish). Escape returns from Settings or details, then closes the popup. Clicking outside closes it. Right click the tray for Refresh, Start with Windows (opt-in), or Quit. If Windows puts the icon in the overflow, drag it into the visible notification area. `tokentray.exe --show` opens the flyout at launch.
 
 Settings also has **Start with Windows** (off by default) and **Start minimized to tray** (on by default). The first registers this executable for your Windows sign-in, without administrator access; the second controls whether a new launch opens the popup. Turning minimized startup off opens the popup on both manual and Windows startup launches. Opening the executable while it is already running shows the existing popup; an automatic startup launch leaves that instance undisturbed. Keep the portable executable in a permanent folder before enabling startup; if you move it, switch startup off and on to update its path. The tray menu's startup switch stays in sync with Settings.
 
@@ -47,6 +47,8 @@ cargo build --release --locked
 Windows CI runs the parser tests, frontend model tests and release compilation, then uploads a private portable executable. It does not publish a release or deploy anything. The committed Cargo.lock records the dependency versions resolved by the Windows runner; CI enforces it with `--locked`.
 
 The `ui/` folder can be served by any static server for design review. Browser preview always labels its synthetic sample data; native execution uses only provider readings.
+
+With an existing Playwright installation and Microsoft Edge, run `node tests/browser-smoke.mjs` for layout and click checks. Optional positional arguments accept the Playwright package path and a Chromium browser executable path. The harness starts a temporary local server, uses synthetic provider data and a mocked native bridge, and saves screenshots under `ui-test-results/`. It checks UI behavior; native placement is covered by the Rust geometry tests and needs a live Windows tray check for end-to-end verification.
 
 For Windows UI automation, `tokentray.exe --inspect` exposes the same flyout as a taskbar window and keeps it open on blur. This developer-only mode makes it discoverable to automation tools that filter out tray/tool windows. Escape and Close still hide it. Normal launches keep tray-only behavior and dismiss on blur.
 

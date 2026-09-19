@@ -28,7 +28,8 @@ export function visibleWindows(s) { return ['needsAuth','absent'].includes(s?.st
 
 export function enabledProviders(settings) { const disabled=new Set(settings?.disabled ?? []);return PROVIDERS.filter(p=>!disabled.has(p.id)); }
 
-export function popupWidth(count,settings=false){return settings?440:Math.max(24+Math.max(0,count)*90,260);}
+// Keep navigation and provider changes from moving the header's click targets.
+export const POPUP_WIDTH = 440;
 export function accountText(account,snapshot,disabled=false){
   const state=disabled?'Paused':statusText(snapshot);
   if(['needsAuth','absent'].includes(snapshot?.status))return state;
