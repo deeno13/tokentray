@@ -89,7 +89,7 @@ header { padding: 12px var(--page-padding); display: flex; align-items: center; 
 .ring { position: relative; width: 60px; height: 60px; display: grid; place-items: center; flex-shrink: 0; }
 .ring svg { position: absolute; inset: 0; width: 60px; height: 60px; transform: rotate(-90deg); stroke-width: 3; }
 .track { stroke: var(--track); }
-.fill { stroke: var(--accent); }
+.fill { stroke: var(--ring-color, var(--accent)); }
 .value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .provider-name, .provider-status { max-width: 100%; min-height: 16px; line-height: 16px; overflow-wrap: anywhere; }
 .provider-name { font-size: 11px; font-weight: 600; }
@@ -152,6 +152,12 @@ progress::-webkit-progress-value { background: var(--accent); border-radius: 3px
   .detail-enter { animation: detail-reveal 150ms cubic-bezier(.2,.75,.35,1) both; }
 }
 .appearance { border-top: 1px solid var(--line); border-radius: 0; margin-top: 12px; padding-top: 8px; margin-bottom: 12px; }
+.ring-colors { cursor: default; }
+.ring-colors:hover, .ring-colors:active { background: none; }
+#ring-swatches { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 8px 0; }
+#ring-swatches button { width: 26px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: none; }
+#ring-swatches button:hover { transform: scale(1.08); }
+#ring-swatches button[aria-checked=true] { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
 .startup-settings { border-bottom: 1px solid var(--line); padding-bottom: 12px; margin-bottom: 16px; }
 .settings-hint:last-child { margin-bottom: 0; }
 
@@ -182,5 +188,7 @@ progress::-webkit-progress-value { background: var(--accent); border-radius: 3px
   .track { stroke: GrayText !important; }
   .setting input { appearance: auto; width: 24px; height: 24px; }
   .setting input::before { display: none; }
+  #ring-swatches button { border: 1px solid ButtonText; box-shadow: none; }
+  #ring-swatches button[aria-checked=true] { outline: 2px solid Highlight; outline-offset: 1px; }
   .provider[aria-expanded=true], #settings[aria-expanded=true] { outline: 1px solid Highlight; outline-offset: -1px; }
 }

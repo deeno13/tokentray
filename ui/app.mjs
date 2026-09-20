@@ -1,9 +1,9 @@
-import {PROVIDERS,percent,resetText,statusText,ageText,visibleWindows,enabledProviders,POPUP_WIDTH,accountText} from './model.mjs';
+import {PROVIDERS,percent,resetText,statusText,ageText,visibleWindows,enabledProviders,POPUP_WIDTH,accountText,RING_COLORS,ringHex,providerSwatch} from './model.mjs';
 const native = !!window.__TAURI__;
 const invoke = (name,args) => window.__TAURI__.core.invoke(name,args);
 const $ = id => document.getElementById(id);
 let accounts = {}, startupEnabled=false, startupAvailable=!native, settingsBusy=false;
-let snapshots = {}, settings = {disabled:[],acrylic:true,start_minimized:true}, selected = null, settingsOpen = false;
+let snapshots = {}, settings = {disabled:[],acrylic:true,start_minimized:true,ring_color:'provider'}, selected = null, settingsOpen = false;
 function node(tag,className,text) { const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=text;return n; }
 let noticeTimer=0;
 function notice(message,transient) {
@@ -74,6 +74,7 @@ function render() {
     $('detail').className=provider.id;$('detail').append(body);
   }
   revealedProvider=selected;
+  applyRingColor();
   updateAccounts();resize();
 }
 let resizeFrame=0, resizing=false, resizeAgain=false, lastSize='';
@@ -98,6 +99,17 @@ function resize() {
 function updateAccounts() {
   for(const provider of PROVIDERS){const el=$('account-'+provider.id);if(el)el.textContent=accountText(accounts[provider.id],snapshots[provider.id],settings.disabled.includes(provider.id));}
 }
+function ringDark() { return matchMedia('(prefers-color-scheme: dark)').matches; }
+function applyRingColor() {
+  const hex=ringHex(settings.ring_color,ringDark());
+  if(hex)document.documentElement.style.setProperty('--ring-color',hex);
+  else document.documentElement.style.removeProperty('--ring-color');
+  for(const swatch of document.querySelectorAll('#ring-swatches [data-ring]')) {
+    const active=(settings.ring_color||'provider')===swatch.dataset.ring;
+    swatch.setAttribute('aria-checked',String(active));
+    swatch.style.background=ringHex(swatch.dataset.ring,ringDark())??providerSwatch(ringDark());
+  }
+}
 function showSettings(open) {
   if(settingsOpen===open)return;
   settingsOpen=open;$('settings-page').hidden=!open;$('overview').hidden=open;
@@ -111,7 +123,7 @@ async function persist(next) {
 }
 function setSettingsBusy(busy) {
   settingsBusy=busy;
-  document.querySelectorAll('#settings-page input').forEach(el=>el.disabled=busy);
+  document.querySelectorAll('#settings-page input,#ring-swatches button').forEach(el=>el.disabled=busy);
   $('startup').disabled=busy||!startupAvailable;
   $('settings-page').setAttribute('aria-busy',String(busy));
 }
@@ -120,6 +132,7 @@ function syncSettingsControls() {
   $('acrylic').checked=settings.acrylic;
   $('start-minimized').checked=settings.start_minimized!==false;
   $('startup').checked=startupEnabled;
+  applyRingColor();
 }
 async function changeSettings(action,errorMessage) {
   if(settingsBusy){syncSettingsControls();return;}
@@ -146,6 +159,22 @@ function renderSettings() {
     meta.id='account-'+provider.id;input.setAttribute('aria-label',provider.name);input.setAttribute('aria-describedby',meta.id);
     copy.append(name,meta);label.append(copy,input);$('provider-settings').append(label);
   }
+  const group=$('ring-swatches');group.replaceChildren();
+  const swatches=[];
+  for(const option of RING_COLORS) {
+    const swatch=node('button');swatch.type='button';swatch.dataset.ring=option.id;
+    swatch.setAttribute('role','radio');swatch.setAttribute('aria-label',option.name);swatch.title=option.name;
+    swatch.addEventListener('click',()=>{if(!settingsBusy&&settings.ring_color!==option.id)saveSettings({ring_color:option.id},'Could not save ring color. Try again.');});
+    swatch.addEventListener('keydown',e=>{
+      const delta={ArrowRight:1,ArrowDown:1,ArrowLeft:-1,ArrowUp:-1}[e.key];
+      if(delta==null&&e.key!=='Home'&&e.key!=='End')return;
+      e.preventDefault();
+      const at=swatches.findIndex(s=>s.dataset.ring===(settings.ring_color||'provider'));
+      const next=e.key==='Home'?0:e.key==='End'?swatches.length-1:(at+delta+swatches.length)%swatches.length;
+      swatches[next].focus();swatches[next].click();
+    });
+    swatches.push(swatch);group.append(swatch);
+  }
   syncSettingsControls();setSettingsBusy(false);
 }
 async function material() {
@@ -160,7 +189,7 @@ $('startup').addEventListener('change',()=>{
 });
 $('start-minimized').addEventListener('change',()=>saveSettings({start_minimized:$('start-minimized').checked},'Could not save launch preference. Try again.'));
 $('acrylic').addEventListener('change',()=>saveSettings({acrylic:$('acrylic').checked},'Could not save appearance. Try again.',material));
-for(const query of ['(prefers-color-scheme: dark)','(forced-colors: active)','(prefers-reduced-transparency: reduce)'])matchMedia(query).addEventListener('change',material);
+for(const query of ['(prefers-color-scheme: dark)','(forced-colors: active)','(prefers-reduced-transparency: reduce)'])matchMedia(query).addEventListener('change',()=>{applyRingColor();material();});
 $('settings').addEventListener('click',()=>showSettings(!settingsOpen));$('back').addEventListener('click',()=>showSettings(false));
 let hiding=false;
 async function hide() {
@@ -198,7 +227,7 @@ if(native){
     snapshots=await invoke('get_all');
   }catch{notice('Could not load usage or settings. Restart TokenTray to reconnect.');}
 }else{
-  try{const saved=JSON.parse(localStorage.getItem('tokentray-settings'));if(saved&&Array.isArray(saved.disabled))settings={disabled:saved.disabled,acrylic:saved.acrylic!==false,start_minimized:saved.start_minimized!==false};}catch{}
+  try{const saved=JSON.parse(localStorage.getItem('tokentray-settings'));if(saved&&Array.isArray(saved.disabled))settings={disabled:saved.disabled,acrylic:saved.acrylic!==false,start_minimized:saved.start_minimized!==false,ring_color:RING_COLORS.some(c=>c.id===saved.ring_color)?saved.ring_color:'provider'};}catch{}
   $('preview').hidden=false;
   snapshots=Object.fromEntries(PROVIDERS.map(p=>[p.id,{status:'needsAuth',windows:[],fetched_at:0}]));
   accounts={codex:{email:'alex@example.com',plan:'plus'},claude:{email:'alex@example.com',plan:'max'},copilot:{username:'alex-dev',plan:'individual'}};
