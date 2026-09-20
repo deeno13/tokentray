@@ -9,6 +9,12 @@ function notice(message) { $('notice').textContent=message;$('notice').hidden=!m
 
 // Keep click targets intact while background readings update.
 const providerButtons=new Map();
+let revealedProvider=null;
+function enterPage(el,back) {
+  el.classList.remove('enter-forward','enter-back');
+  void el.offsetWidth;
+  el.classList.add(back?'enter-back':'enter-forward');
+}
 function createProviderButton(provider) {
   const button=node('button','provider '+provider.id);button.type='button';button.dataset.provider=provider.id;
   button.setAttribute('aria-controls','detail');
@@ -58,8 +64,10 @@ function render() {
     }
     if(s?.note&&s.note!=='Codex app-server')body.append(node('p','guidance',s.note));
     body.append(node('div','source',`${provider.source} · ${ageText(s?.fetched_at)}`));
+    if(selected!==revealedProvider)body.classList.add('detail-enter');
     $('detail').className=provider.id;$('detail').append(body);
   }
+  revealedProvider=selected;
   updateAccounts();resize();
 }
 let resizeFrame=0, resizing=false, resizeAgain=false, lastSize='';
@@ -87,6 +95,7 @@ function updateAccounts() {
 function showSettings(open) {
   if(settingsOpen===open)return;
   settingsOpen=open;$('settings-page').hidden=!open;$('overview').hidden=open;
+  enterPage(open?$('settings-page'):$('overview'),!open);
   $('settings').setAttribute('aria-expanded',String(open));resize();
   if(open)$('back').focus();else $('settings').focus();
 }
