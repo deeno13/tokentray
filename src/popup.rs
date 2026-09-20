@@ -3,6 +3,104 @@
 pub const INITIAL_SIZE: (u32, u32) = (400, 320);
 const EDGE_GAP: f64 = 12.0;
 
+/// How far the flyout travels while it slides, in logical pixels, and how long a
+/// full travel lasts. Like the Windows tray flyouts, it rises into place and
+/// drops away faster than it arrived.
+pub const SLIDE: f64 = 32.0;
+pub const OPEN_MS: u64 = 220;
+pub const CLOSE_MS: u64 = 140;
+pub const FRAME_MS: u64 = 10;
+const SHORTEST_MS: u64 = 60;
+
+/// Eased offset between two points of a slide. Opening decelerates into place;
+/// closing accelerates away so a dismissal never feels like it is dragging.
+pub fn slide(from: f64, to: f64, elapsed: u64, duration: u64) -> f64 {
+    if duration == 0 || elapsed >= duration {
+        return to;
+    }
+    let t = elapsed as f64 / duration as f64;
+    let eased = if to < from { 1.0 - (1.0 - t).powi(3) } else { t * t };
+    from + (to - from) * eased
+}
+
+/// A reversed slide only covers the distance left, so toggling the tray twice
+/// does not crawl through a full-length animation.
+pub fn slide_duration(from: f64, to: f64, full: u64) -> u64 {
+    let share = ((to - from).abs() / SLIDE).clamp(0.0, 1.0);
+    if share == 0.0 {
+        return 0;
+    }
+    ((full as f64 * share).round() as u64).max(SHORTEST_MS)
+}
+
+/// Physical shift for a logical slide offset on the popup's monitor.
+pub fn shift(offset: f64, scale: f64) -> i32 {
+    (offset * scale).round() as i32
+}
+
+/// Drives the open and close slide. Starting one invalidates the frames still
+/// queued from the slide it replaces, so a reversal never fights its predecessor.
+#[derive(Default)]
+pub struct Motion {
+    generation: u64,
+    offset: f64,
+    closing: bool,
+    reduced: bool,
+}
+
+impl Motion {
+    pub fn set_reduced(&mut self, reduced: bool) {
+        self.reduced = reduced;
+    }
+
+    /// A closing popup is on its way out: the tray must treat it as shut so the
+    /// next click reopens it instead of closing it again.
+    pub fn closing(&self) -> bool {
+        self.closing
+    }
+
+    pub fn offset(&self) -> f64 {
+        self.offset
+    }
+
+    /// Start a slide and report its generation and duration. A hidden popup
+    /// always opens from the full travel; a visible one resumes where it stands.
+    /// A zero duration means the caller should finish the move immediately.
+    pub fn begin(&mut self, closing: bool, visible: bool) -> (u64, u64) {
+        self.generation = self.generation.wrapping_add(1);
+        self.closing = closing;
+        if !closing && !visible {
+            self.offset = if self.reduced { 0.0 } else { SLIDE };
+        }
+        let to = if closing { SLIDE } else { 0.0 };
+        let full = if closing { CLOSE_MS } else { OPEN_MS };
+        let duration = if self.reduced { 0 } else { slide_duration(self.offset, to, full) };
+        if duration == 0 && !closing {
+            self.offset = 0.0;
+        }
+        (self.generation, duration)
+    }
+
+    /// Record one frame, ignoring any left over from a slide already replaced.
+    pub fn advance(&mut self, generation: u64, offset: f64) -> bool {
+        if self.generation != generation {
+            return false;
+        }
+        self.offset = offset;
+        true
+    }
+
+    /// Finish a close: the popup may hide and the next open starts level again.
+    pub fn settle(&mut self, generation: u64) -> bool {
+        if self.generation != generation {
+            return false;
+        }
+        self.offset = 0.0;
+        self.closing = false;
+        true
+    }
+}
+
 #[derive(Default)]
 pub struct Interaction {
     generation: u64,
@@ -151,6 +249,104 @@ mod tests {
         let blur = state.blur();
         assert!(!state.leave());
         assert!(state.should_dismiss(blur));
+    }
+
+    #[test]
+    fn a_slide_starts_and_lands_exactly_on_its_endpoints() {
+        assert_eq!(slide(SLIDE, 0.0, 0, OPEN_MS), SLIDE);
+        assert_eq!(slide(SLIDE, 0.0, OPEN_MS, OPEN_MS), 0.0);
+        assert_eq!(slide(SLIDE, 0.0, OPEN_MS * 3, OPEN_MS), 0.0);
+        assert_eq!(slide(0.0, SLIDE, 0, CLOSE_MS), 0.0);
+        assert_eq!(slide(0.0, SLIDE, CLOSE_MS, CLOSE_MS), SLIDE);
+        // Reduced motion asks for no travel time at all.
+        assert_eq!(slide(SLIDE, 0.0, 0, 0), 0.0);
+    }
+
+    #[test]
+    fn opening_decelerates_while_closing_accelerates() {
+        let open = slide(SLIDE, 0.0, OPEN_MS / 2, OPEN_MS);
+        assert!(open < SLIDE / 2.0, "opening should cover most ground early: {open}");
+        let close = slide(0.0, SLIDE, CLOSE_MS / 2, CLOSE_MS);
+        assert!(close < SLIDE / 2.0, "closing should start slowly: {close}");
+        let mut previous = f64::MAX;
+        for step in 0..=10 {
+            let offset = slide(SLIDE, 0.0, OPEN_MS * step / 10, OPEN_MS);
+            assert!(offset <= previous, "an opening slide never moves backwards");
+            previous = offset;
+        }
+    }
+
+    #[test]
+    fn a_reversed_slide_only_covers_the_distance_left() {
+        assert_eq!(slide_duration(SLIDE, 0.0, OPEN_MS), OPEN_MS);
+        assert!(slide_duration(SLIDE / 4.0, 0.0, OPEN_MS) < OPEN_MS);
+        assert_eq!(slide_duration(0.0, 0.0, OPEN_MS), 0);
+        // A sliver of travel still animates rather than snapping.
+        assert_eq!(slide_duration(0.5, 0.0, OPEN_MS), SHORTEST_MS);
+    }
+
+    #[test]
+    fn slide_offsets_scale_with_monitor_dpi() {
+        assert_eq!(shift(SLIDE, 1.0), 32);
+        assert_eq!(shift(SLIDE, 1.5), 48);
+        assert_eq!(shift(0.0, 2.0), 0);
+    }
+
+    #[test]
+    fn a_hidden_popup_opens_from_the_full_travel_and_lands_level() {
+        let mut motion = Motion::default();
+        let (generation, duration) = motion.begin(false, false);
+        assert_eq!(duration, OPEN_MS);
+        assert_eq!(motion.offset(), SLIDE);
+        assert!(!motion.closing());
+        assert!(motion.advance(generation, 4.0));
+        assert_eq!(motion.offset(), 4.0);
+    }
+
+    #[test]
+    fn an_open_popup_reopened_from_the_tray_does_not_replay_the_slide() {
+        let mut motion = Motion::default();
+        assert_eq!(motion.begin(false, true).1, 0);
+        assert_eq!(motion.offset(), 0.0);
+    }
+
+    #[test]
+    fn reopening_mid_close_reverses_from_where_the_popup_stands() {
+        let mut motion = Motion::default();
+        let (closing, _) = motion.begin(true, true);
+        assert!(motion.closing());
+        motion.advance(closing, SLIDE / 2.0);
+        let (_, duration) = motion.begin(false, true);
+        assert!(!motion.closing());
+        assert_eq!(motion.offset(), SLIDE / 2.0);
+        assert_eq!(duration, OPEN_MS / 2);
+        // The replaced close can no longer move or hide the popup.
+        assert!(!motion.advance(closing, SLIDE));
+        assert!(!motion.settle(closing));
+    }
+
+    #[test]
+    fn a_finished_close_settles_level_so_the_next_open_starts_clean() {
+        let mut motion = Motion::default();
+        let (generation, duration) = motion.begin(true, true);
+        assert_eq!(duration, CLOSE_MS);
+        motion.advance(generation, SLIDE);
+        assert!(motion.settle(generation));
+        assert_eq!(motion.offset(), 0.0);
+        assert!(!motion.closing());
+    }
+
+    #[test]
+    fn reduced_motion_skips_the_slide_in_both_directions() {
+        let mut motion = Motion::default();
+        motion.set_reduced(true);
+        let (_, open) = motion.begin(false, false);
+        assert_eq!((open, motion.offset()), (0, 0.0));
+        let (generation, close) = motion.begin(true, true);
+        assert_eq!(close, 0);
+        assert!(motion.closing());
+        assert!(motion.settle(generation));
+        assert_eq!(motion.offset(), 0.0);
     }
 
     #[test]

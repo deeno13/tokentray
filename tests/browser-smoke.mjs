@@ -182,6 +182,18 @@ try{
   assert.equal(await page.evaluate(()=>window.smoke.calls.filter(call=>call.name==='hide_popup').length),1,'rapid closes share one pending request');
   await page.evaluate(()=>window.smoke.finishHide());
 
+  // The window slide lives in Rust; the webview only fades the panel alongside it.
+  const opacity=()=>page.locator('.flyout').evaluate(element=>getComputedStyle(element).opacity);
+  assert.ok(await page.evaluate(()=>window.smoke.calls.some(call=>call.name==='set_motion')),'the webview reports the system motion preference');
+  assert.equal(await opacity(),'1','an open popup shows its panel');
+  await page.evaluate(()=>window.smoke.emit('popup-slide',{open:false,ms:0}));
+  assert.equal(await opacity(),'0','a closing slide fades the panel out with the window');
+  assert.equal(await page.locator('.flyout').evaluate(element=>getComputedStyle(element).transitionTimingFunction),
+    'cubic-bezier(0.4, 0, 1, 1)','leaving accelerates rather than blanking the panel ahead of the window');
+  await page.evaluate(()=>window.smoke.emit('popup-slide',{open:true,ms:140}));
+  assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--slide-ms')),'140ms','the fade runs for as long as the slide');
+  await page.waitForFunction(()=>getComputedStyle(document.querySelector('.flyout')).opacity==='1');
+
   await page.evaluate(()=>{window.smoke.deferRefresh=true;document.getElementById('refresh').click();document.getElementById('refresh').click();});
   assert.equal(await page.evaluate(()=>window.smoke.calls.filter(call=>call.name==='refresh_usage').length),1,'rapid refreshes share one pending request');
   await page.evaluate(()=>window.smoke.finishRefresh());
