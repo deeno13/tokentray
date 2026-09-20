@@ -21,6 +21,18 @@ const BACKOFF_BASE_SECS: u64 = 60;
 const BACKOFF_CAP_SECS: u64 = 900;
 
 static REFRESH: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// The account the in-memory reading and cooldown belong to (memory only).
+static ACCOUNT_FINGERPRINT: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+
+/// True once the credential belongs to a different account than the last check.
+/// The first check only records the account, so a relaunch keeps the persisted
+/// reading; an unreadable identity keeps the last known account.
+fn account_switched(last: &mut Option<String>, current: &str) -> bool {
+    if current.is_empty() { return false; }
+    let switched = last.as_deref().map_or(false, |l| l != current);
+    *last = Some(current.to_string());
+    switched
+}
 
 /// Immediate refresh from the tray or a command
 pub fn request_refresh() {
@@ -272,6 +284,18 @@ pub fn start(app: AppHandle) {
         let mut consecutive_429: u32 = 0;
         loop {
             if !crate::provider_enabled(&app, "claude") { std::thread::sleep(std::time::Duration::from_secs(1)); continue; }
+            // A switched account retires the previous account's reading and 429
+            // cooldown: both describe a credential that is no longer in use.
+            let (account, fingerprint) = crate::account::claude_identity();
+            let switched = {
+                let mut last = ACCOUNT_FINGERPRINT.lock().unwrap();
+                account_switched(&mut last, &fingerprint)
+            };
+            if switched {
+                consecutive_429 = 0;
+                set_and_broadcast(&app, |u| *u = UsageSnapshot::default());
+                crate::account::publish(&app, "claude", account);
+            }
             // No requests inside the backoff window
             let bu = {
                 let st = app.state::<AppState>();
@@ -350,6 +374,15 @@ pub fn start(app: AppHandle) {
     }
     #[test] fn missing_and_negative_are_not_zero() { assert!(parse_response(&json!({"five_hour":{"utilization":-1}})).is_empty()); assert!(parse_response(&json!({})).is_empty()); }
     #[test] fn retry_after_never_lowers_backoff() { assert!(backoff_secs(0,0)>=60); assert!(backoff_secs(3,0)>backoff_secs(0,0)); assert!(backoff_secs(0,3600)>=3600); }
+    #[test] fn account_switch_only_fires_when_the_fingerprint_changes() {
+        let mut last=None;
+        assert!(!account_switched(&mut last,"old@example.com\u{1f}pro"));
+        assert!(!account_switched(&mut last,"old@example.com\u{1f}pro"));
+        assert!(!account_switched(&mut last,"")); // a file caught mid-write is not a switch
+        assert!(!account_switched(&mut last,"old@example.com\u{1f}pro"));
+        assert!(account_switched(&mut last,"new@example.com\u{1f}team"));
+        assert!(account_switched(&mut last,"old@example.com\u{1f}pro"));
+    }
 }
 
 
