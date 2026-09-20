@@ -5,7 +5,13 @@ const $ = id => document.getElementById(id);
 let accounts = {}, startupEnabled=false, startupAvailable=!native, settingsBusy=false;
 let snapshots = {}, settings = {disabled:[],acrylic:true,start_minimized:true}, selected = null, settingsOpen = false;
 function node(tag,className,text) { const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=text;return n; }
-function notice(message) { $('notice').textContent=message;$('notice').hidden=!message;resize(); }
+let noticeTimer=0;
+function notice(message,transient) {
+  clearTimeout(noticeTimer);noticeTimer=0;
+  $('notice').textContent=message;$('notice').hidden=!message;
+  if(message&&transient)noticeTimer=setTimeout(()=>notice(''),5000);
+  resize();
+}
 
 // Keep click targets intact while background readings update.
 const providerButtons=new Map();
@@ -141,7 +147,7 @@ async function material() {
 }
 $('startup').addEventListener('change',()=>{
   const enabled=$('startup').checked;
-  changeSettings(async()=>{startupEnabled=native?await invoke('set_startup',{enabled}):enabled;notice(native?'':'Preview only. Windows startup was not changed.');},'Could not change Windows startup. Try again.');
+  changeSettings(async()=>{startupEnabled=native?await invoke('set_startup',{enabled}):enabled;notice(native?'':'Preview only. Windows startup was not changed.',true);},'Could not change Windows startup. Try again.');
 });
 $('start-minimized').addEventListener('change',()=>saveSettings({start_minimized:$('start-minimized').checked},'Could not save launch preference. Try again.'));
 $('acrylic').addEventListener('change',()=>saveSettings({acrylic:$('acrylic').checked},'Could not save appearance. Try again.',material));
@@ -150,7 +156,7 @@ $('settings').addEventListener('click',()=>showSettings(!settingsOpen));$('back'
 let hiding=false;
 async function hide() {
   if(hiding)return;
-  if(!native){notice('Browser preview. The Windows app closes to its tray icon.');return;}
+  if(!native){notice('Browser preview. The Windows app closes to its tray icon.',true);return;}
   hiding=true;
   try{await invoke('hide_popup');}catch{notice('Could not close popup. Use the tray menu to quit.');}finally{hiding=false;}
 }
@@ -165,9 +171,9 @@ document.addEventListener('keydown',e=>{
 });
 $('refresh').addEventListener('click',async()=>{
   if($('refresh').disabled)return;
-  if(!native){notice('Sample preview only. Live readings appear in the Windows app.');return;}
+  if(!native){notice('Sample preview only. Live readings appear in the Windows app.',true);return;}
   $('refresh').disabled=true;$('refresh').setAttribute('aria-busy','true');
-  try{await invoke('refresh_usage');notice('Refresh requested. Provider cooldowns still apply.');}catch{notice('Refresh failed. Try restarting TokenTray.');}
+  try{await invoke('refresh_usage');notice('Refresh requested. Provider cooldowns still apply.',true);}catch{notice('Refresh failed. Try restarting TokenTray.');}
   setTimeout(()=>{$('refresh').disabled=false;$('refresh').setAttribute('aria-busy','false');},1500);
 });
 if(native){
