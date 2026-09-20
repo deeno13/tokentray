@@ -1,0 +1,82 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and publish (for example v0.1.0)'
+        required: true
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: echo "name=${TAG:-${GITHUB_REF#refs/tags/}}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ inputs.tag }}
+      - name: Check the tag matches the manifest version
+        shell: bash
+        run: |
+          crate=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          bundle=$(grep -m1 '"version"' tauri.conf.json | cut -d'"' -f4)
+          echo "tag=${{ steps.tag.outputs.name }} Cargo.toml=$crate tauri.conf.json=$bundle"
+          test "v$crate" = "${{ steps.tag.outputs.name }}"
+          test "$crate" = "$bundle"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Frontend regression checks
+        run: node --test tests/*.test.mjs
+      - name: Install Rust
+        run: rustup update stable --no-self-update
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Rust regression checks
+        run: cargo test --release --locked
+      - name: Build portable Windows executable
+        run: cargo build --release --locked
+      - name: Stage the release asset and its checksum
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/tokentray.exe dist/tokentray-${{ steps.tag.outputs.name }}-windows-x64.exe
+          cd dist
+          sha256sum tokentray-${{ steps.tag.outputs.name }}-windows-x64.exe > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+      - name: Publish the GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          notes=$(mktemp)
+          {
+            echo "Portable Windows x64 build. Download the \`.exe\`, keep it in a permanent folder and run it; no installer and no administrator access are needed."
+            echo
+            echo "Windows 10/11 x64 with the Microsoft Edge WebView2 Runtime is required."
+            echo
+            echo "The executable is **unsigned**, so Windows SmartScreen shows a warning on first run. Verify the download against \`SHA256SUMS.txt\` before trusting it:"
+            echo
+            echo '```powershell'
+            echo "Get-FileHash .\tokentray-$TAG-windows-x64.exe -Algorithm SHA256"
+            echo '```'
+            echo
+            echo "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/$TAG/CHANGELOG.md) for what is in this version."
+          } > "$notes"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --title "TokenTray $TAG" --notes-file "$notes"
+          fi
