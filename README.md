@@ -7,6 +7,13 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Platform: Windows 10/11 x64](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-0078d4)
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/overview-dark.png">
+    <img src="docs/media/overview-light.png" width="400" alt="The TokenTray flyout: a four-column grid of usage rings for Codex, Claude Code, Cursor, Antigravity, GLM, Grok, OpenCode and GitHub Copilot, each with the time until its next reset.">
+  </picture>
+</p>
+
 TokenTray is a single portable executable that sits in the Windows notification area. Click it and a compact flyout shows a progress ring per provider — how much of the current window you have burned and when it resets. It reads the sessions your AI tools already store on your machine, so there is no account to create, no service to run and nothing to configure.
 
 > **Early development build.** Eight provider adapters are implemented, but availability depends on each installed tool, account and endpoint. These quota endpoints are not documented public APIs and vendors change them without notice. Missing data is always shown as *unavailable*, never as zero usage.
@@ -89,12 +96,16 @@ Each provider gets a ring showing its current usage and the time until its next 
 
 Click a provider to see its individual limit windows. **Escape** goes back, then closes the popup.
 
+<p align="center">
+  <img src="docs/media/detail-dark.png" width="400" alt="Claude Code selected in the grid, with its 5-hour session at 72% and weekly limit at 88% expanded below as labelled bars with reset times.">
+</p>
+
 ### Settings
 
 | Setting | What it does |
 |---|---|
 | **Providers** | Enable or disable each one. Disabled providers are skipped by future checks |
-| **Layout** | A four-column ring grid (default) or a full-width stack |
+| **Layout** | A four-column ring grid (default) or a full-width stack (below) |
 | **Ring color** | *Urgency* (default: amber past 60%, red past 85%), *One accent* (one of six hues for every ring), or *Per provider* (each brand's own color) |
 | **Acrylic** | Turn the native Windows Acrylic material off for an opaque surface |
 | **Start with Windows** | Off by default. Registers this executable for your Windows sign-in, per-user, no administrator access |
@@ -103,6 +114,13 @@ Click a provider to see its individual limit windows. **Escape** goes back, then
 Settings also shows, per provider, the email or username it found, the plan the provider reports, and the connection state. A credential that carries no address — OpenCode's Go key, for instance — shows its plan instead.
 
 Choices survive restarts. The tray menu's startup switch stays in sync with the one in Settings.
+
+<p align="center">
+  <img src="docs/media/settings-light.png" width="400" alt="The Settings page: layout and ring-color choices, a switch per provider with its account and plan, and the System group with Start with Windows, Start minimized to tray and Acrylic effect.">
+  <img src="docs/media/stack-light.png" width="400" alt="The stack layout: each provider on a full-width row with a percentage, a bar, its window label and reset time.">
+</p>
+
+<p align="center"><em>Settings, and the stack layout. All screenshots use sample data.</em></p>
 
 ### Command line
 
@@ -149,6 +167,8 @@ The first build takes a few extra minutes because `rusqlite` compiles the bundle
 The stack is Rust with [Tauri 2](https://tauri.app/) and a plain HTML/CSS/JavaScript frontend — no framework, no bundler, no `node_modules`. Provider parsing lives in small functions covered by synthetic-fixture tests, so you can work on an adapter without a live account.
 
 For design work, serve `ui/` with any static server; browser preview labels its synthetic sample data, and native execution uses only real provider readings. With an existing Playwright install and Microsoft Edge, `node tests/browser-smoke.mjs` runs layout and click checks and writes screenshots to `ui-test-results/`.
+
+The README images are generated, not hand-captured. `node tools/capture-screenshots.mjs` serves `ui/` against a mocked bridge carrying sample readings and drives an installed Chromium-based browser over the DevTools protocol, writing `docs/media/`. Re-run it after a visual change so the images cannot drift from the app, and never replace them with a capture of your own accounts.
 
 Windows CI runs the parser tests, frontend model tests and a locked release build on every push, and uploads the executable as a build artifact. The committed `Cargo.lock` records the versions the Windows runner resolved; CI enforces it with `--locked`. A separate Release workflow runs on a `vX.Y.Z` tag: it checks the tag against `Cargo.toml` and `tauri.conf.json`, runs the same gate, and publishes the executable with its checksum.
 

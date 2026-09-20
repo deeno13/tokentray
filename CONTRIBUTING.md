@@ -24,6 +24,8 @@ cargo build --release --locked
 
 The first build takes a while: `rusqlite` compiles the bundled SQLite C sources.
 
+If a change alters how the popup looks, regenerate the README images with `node tools/capture-screenshots.mjs` and commit the result. It renders `ui/` against a mocked bridge carrying sample readings, so the images stay in step with the app and never contain a real account.
+
 For UI work, serve `ui/` with any static server for design review, or run `node tests/browser-smoke.mjs` with an existing Playwright installation and Microsoft Edge. The harness uses synthetic data and a mocked native bridge, and writes screenshots to `ui-test-results/`. Native placement is covered by the Rust geometry tests and still needs a live tray check.
 
 `tokentray.exe --inspect` exposes the flyout as an ordinary taskbar window so Windows UI automation can see it.
