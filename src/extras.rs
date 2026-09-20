@@ -59,11 +59,17 @@ fn glm_credential(home: &Path) -> Option<(String, String)> {
     }
     None
 }
+fn grok_trusted(id: &str, entry: &Value) -> bool {
+    id == "https://auth.x.ai" || id.starts_with("https://auth.x.ai::") || entry["oidc_issuer"] == "https://auth.x.ai"
+}
 fn grok_token(v: &Value) -> Option<String> {
     let entries = v.as_object()?;
-    entries.iter().filter(|(id, entry)| id.as_str() == "https://auth.x.ai" || id.starts_with("https://auth.x.ai::") || entry["oidc_issuer"] == "https://auth.x.ai")
-        .filter(|(_, e)| iso(&e["expires_at"]).map(|t| t > now_ms()).unwrap_or(true)).find_map(|(_,e)| secret(&e["key"]))
+    let trusted: Vec<&Value> = entries.iter().filter(|(id, entry)| grok_trusted(id, entry)).map(|(_, entry)| entry).collect();
+    // Prefer a live xAI session; fall back to the stored key after its short access-token TTL.
+    trusted.iter().find(|entry| iso(&entry["expires_at"]).map(|t| t > now_ms()).unwrap_or(true))
+        .or_else(|| trusted.first()).and_then(|entry| secret(&entry["key"]))
 }
+fn grok_plan(v: &Value) -> Option<String> { crate::account::clean(v["subscription_tier_display"].as_str()) }
 fn gh_token() -> Option<String> {
     for key in ["GH_TOKEN","GITHUB_TOKEN"] { if let Ok(t) = std::env::var(key) { if !t.trim().is_empty() { return Some(t); } } }
     let mut cmd = std::process::Command::new("gh");
@@ -122,6 +128,11 @@ pub fn parse(id: &str, v: &Value) -> Result<Vec<LimitWindow>, String> {
             let c = &v["config"]; let reset = iso(&c["currentPeriod"]["end"]).or_else(|| iso(&c["billingPeriodEnd"]));
             if let Some(w) = window("credits", "Grok Build credits", &c["creditUsagePercent"],reset) { out.push(w); }
             else if let Some(products) = c["productUsage"].as_array() { for p in products { let name = p["product"].as_str().unwrap_or("Usage"); if let Some(w) = window(name,name,&p["usagePercent"],reset) { out.push(w); } } }
+            // A weekly pool states its window in currentPeriod and omits the percent
+            // until usage lands. Grok's own /usage still draws that as 0%, not unmetered.
+            if out.is_empty() && c["currentPeriod"]["type"].as_str().map(|kind| kind.contains("WEEKLY")).unwrap_or(false) {
+                out.push(LimitWindow { id:"credits".into(), label:"Grok Build credits".into(), used:0.0, resets_at:reset, ..Default::default() });
+            }
         }
         "opencode" => { for (key,label) in [("rolling","5-hour limit"),("weekly","Weekly limit"),("monthly","Monthly limit")] {
             if let Some(w) = window(key,label,&v["usage"][key]["percent"],iso(&v["usage"][key]["resetsAt"])) { out.push(w); }
@@ -158,6 +169,7 @@ fn read(app: &AppHandle, id: &str) -> Result<Vec<LimitWindow>, Failure> {
     if id == "opencode" { account.plan=Some("Go".into()); }
     if id == "grok" {
         if let Some(auth)=json_file(&home.join(".grok/auth.json")) {if let Some(entries)=auth.as_object() {account.email=entries.values().find(|entry|secret(&entry["key"]).as_deref()==Some(token.as_str())).and_then(|entry|crate::account::clean(entry["email"].as_str()));}}
+        if let Ok(settings)=fetch(id,"https://cli-chat-proxy.grok.com/v1/settings",&token) { account.plan=grok_plan(&settings); }
     }
     crate::account::publish(app,id,account);
     parse(id,&v).map_err(|_| Failure::Invalid)
@@ -206,6 +218,8 @@ pub fn start(app: AppHandle) {
         assert_eq!(w[0].used,0.125); assert_eq!(w[0].resets_at,Some(1800000000000));
     }
     #[test] fn grok_issuer_boundary() { assert!(grok_token(&json!({"https://auth.x.ai.evil::client":{"key":"synthetic"}})).is_none()); assert_eq!(grok_token(&json!({"https://auth.x.ai::client":{"key":"synthetic"}})),Some("synthetic".into())); }
+    #[test] fn grok_keeps_an_expired_trusted_session() { assert_eq!(grok_token(&json!({"https://auth.x.ai::client":{"key":"synthetic","expires_at":"2000-01-01T00:00:00Z"}})),Some("synthetic".into())); }
+    #[test] fn grok_plan_from_settings() { assert_eq!(grok_plan(&json!({"subscription_tier_display":"X Premium"})).as_deref(),Some("X Premium")); assert!(grok_plan(&json!({})).is_none()); }
     #[test] fn zai_host_boundary() { assert!(zai_base("https://api.z.ai.evil/anthropic").is_none()); assert_eq!(zai_base("https://api.z.ai/api/anthropic"),Some("https://api.z.ai")); }
     #[test] fn copilot_does_not_guess_usage() {
         assert!(parse("copilot",&json!({"quota_snapshots":{"chat":{"entitlement":300}}})).is_err());
@@ -213,5 +227,18 @@ pub fn start(app: AppHandle) {
     }
     #[test] fn opencode_zero_is_valid_when_reported() { let w = parse("opencode",&json!({"usage":{"rolling":{"percent":0,"resetsAt":"2026-09-09T00:00:00.123Z"}}})).unwrap(); assert_eq!(w[0].used,0.0); assert!(w[0].resets_at.is_some()); }
     #[test] fn grok_product_fallback() { let w = parse("grok",&json!({"config":{"productUsage":[{"product":"GrokBuild","usagePercent":8}]}})).unwrap(); assert_eq!(w[0].used,0.08); }
+    #[test] fn grok_credits_percent() {
+        let w = parse("grok",&json!({"config":{"creditUsagePercent":2.0,"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","end":"2026-09-27T13:44:13.713276+00:00"}}})).unwrap();
+        assert_eq!(w[0].used,0.02); assert!(w[0].resets_at.is_some());
+    }
+    #[test] fn grok_weekly_period_without_percent_is_zero() {
+        let w = parse("grok",&json!({"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","end":"2026-09-27T13:44:13.713276+00:00"}}})).unwrap();
+        assert_eq!(w[0].id,"credits"); assert_eq!(w[0].used,0.0); assert!(w[0].resets_at.is_some());
+        assert!(parse("grok",&json!({"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_MONTHLY"}}})).is_err());
+    }
+    #[test] fn grok_timestamps_include_nanos_and_offsets() {
+        assert!(iso(&json!("2026-09-20T22:08:20.466761100Z")).is_some());
+        assert!(iso(&json!("2026-09-27T13:44:13.713276+00:00")).is_some());
+    }
 }
 
