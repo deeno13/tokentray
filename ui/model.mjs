@@ -33,8 +33,11 @@ export const POPUP_WIDTH = 440;
 export function accountText(account,snapshot,disabled=false){
   const state=disabled?'Paused':statusText(snapshot);
   if(['needsAuth','absent'].includes(snapshot?.status))return state;
-  const identity=account?.email||(account?.username?'@'+account.username:null)||'Account not reported';
+  // A borrowed credential may carry no address at all (OpenCode's Go key is
+  // account-wide): report what the source has instead of a missing account.
+  const identity=account?.email||(account?.username?'@'+account.username:null);
   const plan=account?.plan?account.plan+' plan':'Plan not reported';
-  if(state==='Updated')return identity+' · '+plan;
-  return identity+' · '+plan+' · '+state;
+  const parts=[identity,plan];
+  if(state!=='Updated')parts.push(state);
+  return parts.filter(Boolean).join(' · ');
 }

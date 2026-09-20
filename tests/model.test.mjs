@@ -11,3 +11,4 @@ test('provider settings hide disabled entries and preserve provider order',()=>{
 
 import {accountText} from '../ui/model.mjs';
 test('settings show identity and plan while hiding signed-out identity',()=>{const a={email:'alex@example.com',plan:'plus'};assert.match(accountText(a,{status:'ok'}),/alex@example.com.*plus plan/);assert.doesNotMatch(accountText(a,{status:'needsAuth'}),/alex@example.com/);assert.match(accountText(null,{status:'ok'}),/Plan not reported/);assert.match(accountText({username:'alex'},{status:'ok'},true),/@alex.*Paused/);});
+test('a credential with no address reports its plan without an account placeholder',()=>{assert.equal(accountText({plan:'Go'},{status:'ok'}),'Go plan');assert.doesNotMatch(accountText({plan:'Go'},{status:'stale'}),/Account not reported/);assert.equal(accountText({plan:'Go'},{status:'stale'}),'Go plan · Stale');});
