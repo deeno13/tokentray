@@ -325,6 +325,17 @@ function ringGlyph(mode) {
   }
   return wrap;
 }
+// Rust slides the window itself; the panel only fades over the same span, so the
+// two halves of the tray flyout's open and close read as one movement.
+function slide(open,ms) {
+  document.documentElement.style.setProperty('--slide-ms',(ms>0?ms:0)+'ms');
+  if(open)document.documentElement.removeAttribute('data-popup');
+  else document.documentElement.dataset.popup='closing';
+}
+function reportMotion() {
+  if(!native)return;
+  invoke('set_motion',{reduced:matchMedia('(prefers-reduced-motion: reduce)').matches}).catch(()=>{});
+}
 async function material() {
   const allow=settings.acrylic&&!matchMedia('(forced-colors: active)').matches&&!matchMedia('(prefers-reduced-transparency: reduce)').matches;
   const applied=native?await invoke('set_material',{enabled:allow,dark:dark()}).catch(()=>false):false;
@@ -338,6 +349,7 @@ $('start-minimized').addEventListener('change',()=>saveSettings({start_minimized
 $('acrylic').addEventListener('change',()=>saveSettings({acrylic:$('acrylic').checked},'Could not save appearance. Try again.',material));
 $('start-monitoring').addEventListener('click',()=>saveSettings({onboarded:true},'Could not save setup. Try again.'));
 for(const query of ['(prefers-color-scheme: dark)','(forced-colors: active)','(prefers-reduced-transparency: reduce)'])matchMedia(query).addEventListener('change',()=>{renderSettings();render();material();});
+matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',reportMotion);
 $('settings').addEventListener('click',()=>showPage(page==='settings'?'overview':'settings'));
 $('back').addEventListener('click',()=>showPage('overview'));
 let hiding=false;
@@ -376,6 +388,7 @@ if(native){
     await window.__TAURI__.event.listen('notice',e=>notice(e.payload));
     await window.__TAURI__.event.listen('open-settings',()=>showPage('settings'));
     await window.__TAURI__.event.listen('popup-hidden',()=>{if(page!=='first-run')showPage('overview');});
+    await window.__TAURI__.event.listen('popup-slide',e=>slide(e.payload.open,e.payload.ms));
     snapshots=await invoke('get_all');
   }catch{notice('Could not load usage or settings. Restart TokenTray to reconnect.');}
 }else{
@@ -392,4 +405,4 @@ if(native){
 if(firstRun()){page='first-run';$('overview').hidden=true;$('first-run').hidden=false;document.querySelector('header').hidden=true;}
 const sizeObserver=new ResizeObserver(resize);for(const el of [document.querySelector('header'),$('providers'),$('detail'),$('settings-page'),$('first-run'),$('notice')])sizeObserver.observe(el);
 window.addEventListener('resize',resize);
-renderSettings();render();material();setInterval(render,60000);
+renderSettings();render();material();reportMotion();setInterval(render,60000);

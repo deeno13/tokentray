@@ -269,6 +269,12 @@ progress::-webkit-progress-value { background: var(--ring-color, var(--accent));
 .primary { border: 0; border-radius: 6px; background: var(--ink); color: var(--surface); font-size: 12px; font-weight: 600; padding: 9px 16px; }
 .primary:hover { opacity: .85; }
 
+/* The tray flyout slides: the window travels, the panel fades with it. Rust
+   drives the travel and sets --slide-ms so both halves land together. */
+.flyout { transition: opacity var(--slide-ms, 0ms) cubic-bezier(.2,.75,.35,1); }
+/* Leaving accelerates with the window instead of blanking the panel first. */
+:root[data-popup=closing] .flyout { opacity: 0; transition-timing-function: cubic-bezier(.4,0,1,1); }
+
 @keyframes page-forward { from { opacity: 0; transform: translateX(7px); } }
 @keyframes page-back { from { opacity: 0; transform: translateX(-7px); } }
 @keyframes detail-reveal { from { opacity: 0; transform: translateY(-4px); } }

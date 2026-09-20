@@ -17,6 +17,7 @@ use usage::UsageSnapshot;
 pub struct AppState {
     startup_menu: Mutex<Option<tauri::menu::CheckMenuItem<tauri::Wry>>>,
     interaction: Mutex<popup::Interaction>,
+    motion: Mutex<popup::Motion>,
     accounts: Mutex<BTreeMap<String, account::Account>>,
     settings: Mutex<config::Settings>,
     popup_size: Mutex<(u32, u32)>,
@@ -68,7 +69,9 @@ fn resize_popup(app: AppHandle, width: u32, height: u32) -> Result<(), String> {
 }
 
 // A point inside the selected monitor keeps content resizes on that display,
-// while resolving its current work area and DPI afresh each time.
+// while resolving its current work area and DPI afresh each time. The resting
+// placement is the same one an in-flight slide is offset from, so a content
+// resize mid-animation lands on the frame instead of fighting it.
 fn position_popup(
     app: &AppHandle,
     target: Option<tauri::PhysicalPosition<f64>>,
@@ -92,7 +95,11 @@ fn position_popup(
         logical_size,
         monitor.scale_factor(),
     );
-    let position = tauri::PhysicalPosition::new(placement.x, placement.y);
+    let offset = state.motion.lock().unwrap().offset();
+    let position = tauri::PhysicalPosition::new(
+        placement.x,
+        placement.y.saturating_add(popup::shift(offset, monitor.scale_factor())),
+    );
     let size = tauri::PhysicalSize::new(placement.width, placement.height);
     // Move first so Windows applies the destination monitor's DPI before sizing.
     if window.outer_position().ok() != Some(position) {
@@ -132,11 +139,74 @@ fn refresh_usage() {
 #[tauri::command]
 fn hide_popup(app: AppHandle) {
     app.state::<AppState>().interaction.lock().unwrap().cancel();
-    if let Some(w) = app.get_webview_window("main") { let _ = w.hide(); }
-    // The webview persists across hides; let it leave sub-pages like Settings
-    // so the next open starts from the main view.
+    let Some(window) = app.get_webview_window("main") else { return };
+    if !window.is_visible().unwrap_or(false) { return; }
+    let state = app.state::<AppState>();
+    let started = {
+        let mut motion = state.motion.lock().unwrap();
+        // A dismissal already on its way out finishes on its own terms.
+        if motion.closing() { None } else { Some(motion.begin(true, true)) }
+    };
+    let Some((generation, duration)) = started else { return };
+    announce_slide(&app, false, duration);
+    if duration == 0 { finish_close(&app, generation); } else { slide_popup(&app, generation, duration, true); }
+}
+
+// The popup is told which way its window is moving and for how long, because
+// only the webview can fade its contents alongside the slide.
+fn announce_slide(app: &AppHandle, open: bool, duration: u64) {
+    use tauri::Emitter;
+    let _ = app.emit("popup-slide", serde_json::json!({"open": open, "ms": duration}));
+}
+
+// Each eased frame is computed off the UI thread and posted back to it. The
+// generation makes frames from a slide that has been replaced harmless.
+fn slide_popup(app: &AppHandle, generation: u64, duration: u64, closing: bool) {
+    let app = app.clone();
+    let from = app.state::<AppState>().motion.lock().unwrap().offset();
+    let to = if closing { popup::SLIDE } else { 0.0 };
+    std::thread::spawn(move || {
+        let start = std::time::Instant::now();
+        loop {
+            let elapsed = start.elapsed().as_millis() as u64;
+            let offset = popup::slide(from, to, elapsed, duration);
+            let done = elapsed >= duration;
+            let dispatch = app.clone();
+            let _ = app.run_on_main_thread(move || {
+                let advanced = dispatch.state::<AppState>().motion.lock().unwrap().advance(generation, offset);
+                if advanced { let _ = position_popup(&dispatch, None); }
+                if done && closing { finish_close(&dispatch, generation); }
+            });
+            if done { break; }
+            std::thread::sleep(std::time::Duration::from_millis(popup::FRAME_MS));
+        }
+    });
+}
+
+// Hide once the popup has slid away, then return it to its resting placement so
+// the next open starts from the full travel rather than halfway down.
+fn finish_close(app: &AppHandle, generation: u64) {
+    let settled = app.state::<AppState>().motion.lock().unwrap().settle(generation);
+    if !settled { return; }
+    if let Some(window) = app.get_webview_window("main") { let _ = window.hide(); }
+    let _ = position_popup(app, None);
+    // The webview persists across hides; let it leave sub-pages like Settings so
+    // the next open starts from the main view. Announced only once the window is
+    // gone, so the page never visibly changes under a popup still sliding away.
     use tauri::Emitter;
     let _ = app.emit("popup-hidden", ());
+}
+
+/// The tray treats a popup that is sliding away as already shut, so the click
+/// that interrupts a dismissal reopens it instead of closing it twice.
+fn popup_open(app: &AppHandle, window: &tauri::WebviewWindow) -> bool {
+    window.is_visible().unwrap_or(false) && !app.state::<AppState>().motion.lock().unwrap().closing()
+}
+
+// Only the webview can see the system's motion preference, so it reports one.
+#[tauri::command]
+fn set_motion(app: AppHandle, reduced: bool) {
+    app.state::<AppState>().motion.lock().unwrap().set_reduced(reduced);
 }
 
 #[tauri::command]
@@ -158,9 +228,14 @@ fn show_popup(app: &AppHandle) {
         let size = rect.size.to_physical::<f64>(1.0);
         tauri::PhysicalPosition::new(position.x + size.width / 2.0, position.y + size.height / 2.0)
     });
+    let visible = window.is_visible().unwrap_or(false);
+    let (generation, duration) = app.state::<AppState>().motion.lock().unwrap().begin(false, visible);
     let _ = position_popup(app, target);
     let _ = window.show();
     let _ = window.set_focus();
+    // Announced after the window is up: a hidden webview would not run the fade.
+    announce_slide(app, true, duration);
+    if duration > 0 { slide_popup(app, generation, duration, false); }
 }
 
 fn main() {
@@ -174,6 +249,7 @@ fn main() {
         .manage(AppState {
             startup_menu: Mutex::new(None),
             interaction: Mutex::new(popup::Interaction::default()),
+            motion: Mutex::new(popup::Motion::default()),
             accounts: Mutex::new(BTreeMap::new()),
             settings: Mutex::new(config::Settings::load()),
             popup_size: Mutex::new(popup::INITIAL_SIZE),
@@ -182,7 +258,7 @@ fn main() {
             cursor: Mutex::new(cursor::load_persisted()), antigravity: Mutex::new(antigravity::load_persisted()),
             extras: Mutex::new(extras::load_persisted()),
         })
-        .invoke_handler(tauri::generate_handler![get_startup, set_startup, get_all, get_accounts, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material])
+        .invoke_handler(tauri::generate_handler![get_startup, set_startup, get_all, get_accounts, get_settings, save_settings, resize_popup, refresh_usage, hide_popup, set_material, set_motion])
         .on_window_event(|w, event| match event {
             tauri::WindowEvent::Focused(false) => {
                 if !std::env::args().any(|arg| arg == "--inspect") {
@@ -229,14 +305,16 @@ fn main() {
                     let Some(w)=app.get_webview_window("main") else {return};
                     match ev {
                         TrayIconEvent::Click {button:MouseButton::Left,button_state:MouseButtonState::Down,..} => {
-                            app.state::<AppState>().interaction.lock().unwrap().press(w.is_visible().unwrap_or(false));
+                            let open=popup_open(app,&w);
+                            app.state::<AppState>().interaction.lock().unwrap().press(open);
                         }
                         TrayIconEvent::DoubleClick {button:MouseButton::Left,..} => {
                             // The second release should keep the popup open.
                             app.state::<AppState>().interaction.lock().unwrap().press(false);
                         }
                         TrayIconEvent::Click {button:MouseButton::Left,button_state:MouseButtonState::Up,..} => {
-                            let close=app.state::<AppState>().interaction.lock().unwrap().release(w.is_visible().unwrap_or(false));
+                            let open=popup_open(app,&w);
+                            let close=app.state::<AppState>().interaction.lock().unwrap().release(open);
                             if close {hide_popup(app.clone());} else {show_popup(app);}
                         }
                         TrayIconEvent::Leave {..} => {
