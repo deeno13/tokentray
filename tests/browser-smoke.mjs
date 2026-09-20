@@ -29,7 +29,7 @@ const artifacts=new URL('../ui-test-results/',import.meta.url);
 await mkdir(artifacts,{recursive:true});
 const errors=[];
 
-async function openFixture(count,viewport={width:440,height:800},colorScheme='light',resizeFeedback=false){
+async function openFixture(count,viewport={width:400,height:800},colorScheme='light',resizeFeedback=false){
   const context=await browser.newContext({viewport,colorScheme});
   const page=await context.newPage();
   page.on('pageerror',error=>errors.push(error.message));
@@ -44,7 +44,7 @@ async function openFixture(count,viewport={width:440,height:800},colorScheme='li
       windows:[{label:'Current session',used:0.38,resets_at:now+3600000},{label:'Weekly limit',used:0.62,resets_at:now+432000000}],
     }]));
     window.smoke={
-      calls:[],settings:{disabled:ids.slice(count),acrylic:true,start_minimized:true,ring_color:'provider'},
+      calls:[],settings:{disabled:ids.slice(count),acrylic:true,start_minimized:true,ring_color:'urgency',layout:'grid',onboarded:true},
       failSave:false,deferRefresh:false,deferHide:false,
       emit(name,payload){for(const listener of events.get(name)||[])listener({payload});},
     };
@@ -100,12 +100,12 @@ async function checkGeometry(page,count,width){
       resizeWidths:window.smoke.calls.filter(call=>call.name==='resize_popup').map(call=>call.args.width),
     };
   });
-  assert.equal(layout.flyout.width,Math.min(440,width));
-  assert.ok(layout.buttons.every(button=>button.width===36&&button.height===36),'header controls are 36px square');
+  assert.equal(layout.flyout.width,Math.min(400,width));
+  assert.ok(layout.buttons.every(button=>button.width===30&&button.height===30),'header controls are 30px square');
   assert.ok(layout.overflow.every(value=>!value),'overview has no horizontal overflow');
-  assert.ok(layout.resizeWidths.every(value=>value===440),'every native resize preserves the logical width');
+  assert.ok(layout.resizeWidths.every(value=>value===400),'every native resize preserves the logical width');
   assert.equal(layout.providers.length,count);
-  if(count===8&&width===440){
+  if(count===8&&width===400){
     assert.equal(new Set(layout.providers.map(provider=>provider.y)).size,2,'eight providers wrap into two rows');
     assert.equal(new Set(layout.providers.map(provider=>provider.x)).size,4,'provider rows have four columns');
     assert.ok(Math.max(...layout.providers.map(p=>p.height))-Math.min(...layout.providers.map(p=>p.height))<=1,'provider click targets have consistent heights');
@@ -115,12 +115,12 @@ async function checkGeometry(page,count,width){
 try{
   browser=await chromium.launch({headless:true,...(process.argv[3]?{executablePath:process.argv[3]}:{channel:'msedge'})});
   for(const scenario of [
-    {name:'empty-light',count:0,width:440,height:800,scheme:'light'},
-    {name:'single-light',count:1,width:440,height:800,scheme:'light'},
-    {name:'all-light',count:8,width:440,height:800,scheme:'light'},
-    {name:'all-dark',count:8,width:440,height:800,scheme:'dark'},
+    {name:'empty-light',count:0,width:400,height:800,scheme:'light'},
+    {name:'single-light',count:1,width:400,height:800,scheme:'light'},
+    {name:'all-light',count:8,width:400,height:800,scheme:'light'},
+    {name:'all-dark',count:8,width:400,height:800,scheme:'dark'},
     {name:'narrow-light',count:8,width:320,height:360,scheme:'light'},
-    {name:'short-dark',count:8,width:440,height:240,scheme:'dark'},
+    {name:'short-dark',count:8,width:400,height:240,scheme:'dark'},
   ]){
     const {context,page}=await openFixture(scenario.count,{width:scenario.width,height:scenario.height},scenario.scheme);
     await checkGeometry(page,scenario.count,scenario.width);
@@ -140,7 +140,7 @@ try{
       heights:[...element.querySelectorAll('.setting')].map(row=>row.getBoundingClientRect().height),
     }));
     assert.equal(settingsGeometry.overflow,false,'long synthetic account text wraps within settings');
-    assert.ok(settingsGeometry.heights.every(height=>height>=44),'settings rows provide at least 44px targets');
+    assert.ok(settingsGeometry.heights.every(height=>height>=32),'settings rows provide at least 32px targets');
     await page.screenshot({path:fileURLToPath(new URL(scenario.name+'-settings.png',artifacts))});
     // Scrolling to the final setting must keep the header close button available.
     await page.locator('#acrylic').scrollIntoViewIfNeeded();
@@ -196,18 +196,39 @@ try{
   await codexSetting.click();
   await page.waitForFunction(()=>window.smoke.settings.disabled.includes('codex'));
   assert.equal(await page.locator('[data-provider="codex"]').count(),0,'successful save updates enabled providers');
-  assert.equal(await page.locator('#ring-swatches button').count(),7,'ring color offers the provider default and six presets');
-  assert.equal(await page.locator('#ring-swatches [data-ring="provider"]').getAttribute('aria-checked'),'true','provider colors start selected');
-  await page.locator('#ring-swatches [data-ring="teal"]').click();
+  const ringOf=id=>page.locator('[data-provider="'+id+'"]').evaluate(element=>element.style.getPropertyValue('--ring-color'));
+  assert.equal(await page.locator('#ring-modes button').count(),3,'ring color offers urgency, one accent and per provider');
+  assert.equal(await page.locator('#ring-modes [data-value="urgency"]').getAttribute('aria-checked'),'true','urgency starts selected');
+  assert.equal(await page.locator('#ring-swatches').isVisible(),false,'accent swatches stay hidden outside the accent mode');
+  assert.equal(await ringOf('claude'),'#8a5a12','urgency warns on a 62% reading in the light scheme');
+  await page.locator('#ring-modes [data-value="accent"]').click();
   await page.waitForFunction(()=>window.smoke.settings.ring_color==='teal');
-  assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--ring-color')),'#006d77','ring selection tints the rings in the light scheme');
-  assert.equal(await page.locator('#ring-swatches [data-ring="teal"]').getAttribute('aria-checked'),'true','selected swatch reports its state');
-  await page.locator('#ring-swatches [data-ring="provider"]').click();
+  assert.equal(await page.locator('#ring-swatches button').count(),6,'the accent mode reveals six presets');
+  assert.equal(await page.locator('#ring-swatches [data-ring="teal"]').getAttribute('aria-checked'),'true','the accent mode selects a concrete hue');
+  assert.equal(await ringOf('claude'),'#006d77','one accent paints every ring the same hue');
+  await page.locator('#ring-swatches [data-ring="rose"]').click();
+  await page.waitForFunction(()=>window.smoke.settings.ring_color==='rose');
+  assert.equal(await ringOf('claude'),'#be185d','picking a preset repaints the rings');
+  await page.locator('#ring-modes [data-value="provider"]').click();
   await page.waitForFunction(()=>window.smoke.settings.ring_color==='provider');
-  assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--ring-color')),'','provider colors clear the ring override');
+  assert.equal(await page.locator('#ring-swatches').isVisible(),false,'leaving the accent mode hides its swatches');
+  assert.equal(await ringOf('claude'),'','provider colors clear the ring override');
+  await page.locator('#back').click();
+  const gridBox=await page.locator('[data-provider="claude"]').boundingBox();
+  await page.locator('#settings').click();
+  await page.locator('#layout-modes [data-value="stack"]').click();
+  await page.waitForFunction(()=>window.smoke.settings.layout==='stack');
+  await page.locator('#back').click();
+  assert.equal(await page.locator('.provider-row').count(),7,'the stack layout renders one row per enabled provider');
+  assert.equal(await page.locator('.provider').count(),0,'switching layouts replaces the grid tiles');
+  const stackBox=await page.locator('[data-provider="claude"]').boundingBox();
+  assert.ok(stackBox.width>gridBox.width,'stack rows span the popup width');
+  await page.locator('[data-provider="claude"]').click();
+  await page.waitForFunction(()=>!document.getElementById('detail').hidden);
+  assert.match(await page.locator('#detail').innerText(),/Current session/);
   await context.close();
-  console.log('PASS live updates between pointerdown/up, DOM/focus stability, Escape, refresh/close single flight, failed/successful setting saves, ring color presets');
-  const feedback=await openFixture(8,{width:440,height:620},'light',true);
+  console.log('PASS live updates between pointerdown/up, DOM/focus stability, Escape, refresh/close single flight, failed/successful setting saves, ring color modes, stack layout');
+  const feedback=await openFixture(8,{width:400,height:620},'light',true);
   const baseline=await settleResizes(feedback.page);
   let detailHeight;
   for(let cycle=0;cycle<3;cycle++){
@@ -229,7 +250,7 @@ try{
   }
   const settled=await settleResizes(feedback.page);
   assert.ok(settled.calls-baseline.calls<=24,'twelve view transitions have at most two resize requests each');
-  await checkGeometry(feedback.page,8,440);
+  await checkGeometry(feedback.page,8,400);
   await feedback.context.close();
   console.log('PASS resize feedback: 3 grow/shrink cycles, overview '+baseline.height+'px, detail '+detailHeight+'px, settings clamped to 620px, '+(settled.calls-baseline.calls)+' resize requests for 12 transitions');
 

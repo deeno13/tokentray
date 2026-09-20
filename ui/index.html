@@ -4,22 +4,53 @@
 <body>
 <main class="flyout" aria-label="AI agent usage limits">
   <header>
-    <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v5h16v-5M7 5h10M7 9h10M9 13h6"/></svg><h1>TokenTray</h1></div>
-    <div class="actions"><button type="button" id="refresh" aria-label="Refresh usage" title="Refresh usage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"/></svg></button><button type="button" id="settings" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings-page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 17h16M9 4v6M15 14v6"/></svg></button><button type="button" id="close" aria-label="Close popup" title="Close popup (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
+    <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v5h16v-5M7 5h10M7 9h10M9 13h6"/></svg><h1>TokenTray</h1><span id="freshness"></span></div>
+    <div class="actions"><button type="button" id="refresh" aria-label="Refresh usage" title="Refresh usage"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 4.5V9h-4.5M20 12a8 8 0 1 1-2.6-5.9L20 8.6"/></svg></button><button type="button" id="settings" aria-label="Settings" title="Settings" aria-expanded="false" aria-controls="settings-page"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2.9"/><path d="M19.2 13.1a7.4 7.4 0 0 0 0-2.2l1.9-1.4-1.9-3.3-2.2 1a7.4 7.4 0 0 0-1.9-1.1L14.8 3.7h-3.8l-.3 2.4a7.4 7.4 0 0 0-1.9 1.1l-2.2-1L4.7 9.5l1.9 1.4a7.4 7.4 0 0 0 0 2.2l-1.9 1.4 1.9 3.3 2.2-1a7.4 7.4 0 0 0 1.9 1.1l.3 2.4h3.8l.3-2.4a7.4 7.4 0 0 0 1.9-1.1l2.2 1 1.9-3.3z"/></svg></button><button type="button" id="close" aria-label="Close popup" title="Close popup (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button></div>
   </header>
   <div id="preview" hidden>Preview · sample data</div>
   <div id="notice" role="status" hidden></div>
   <section id="overview" aria-label="Usage overview"><div id="providers" aria-label="Providers"></div><section id="detail" aria-label="Provider details" hidden></section></section>
   <section id="settings-page" aria-label="Settings" hidden>
-    <div class="settings-heading"><button type="button" id="back" aria-label="Back to overview" title="Back to overview (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg></button><h2>Settings</h2></div>
-    <div class="startup-settings">
-      <label class="setting"><span class="setting-copy"><span class="setting-name">Start with Windows</span></span><input id="startup" type="checkbox" aria-label="Start with Windows" disabled></label>
-      <label class="setting"><span class="setting-copy"><span class="setting-name">Start minimized to tray</span></span><input id="start-minimized" type="checkbox" aria-label="Start minimized to tray" checked></label>
+    <div class="settings-heading">
+      <span class="heading-title"><button type="button" id="back" aria-label="Back to overview" title="Back to overview (Esc)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6M8 12h12"/></svg></button><h2>Settings</h2></span>
+      <button type="button" id="settings-close" aria-label="Close popup" title="Close popup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17"/></svg></button>
     </div>
-    <p class="settings-hint">Choose providers to monitor.</p>
-    <div id="provider-settings"></div>
-    <label class="setting appearance"><span>Acrylic effect</span><input id="acrylic" type="checkbox" checked></label>
-    <div class="setting ring-colors"><span class="setting-copy"><span class="setting-name">Ring color</span><span class="account-details">Tints every provider ring, or keep each brand's own color.</span></span><div id="ring-swatches" role="radiogroup" aria-label="Ring color"></div></div>
-    <p class="settings-hint">Changes save automatically.</p>
+    <div class="settings-body">
+      <div class="settings-group">
+        <div class="group-label"><span id="layout-label">Layout</span></div>
+        <div id="layout-modes" class="segmented" role="radiogroup" aria-labelledby="layout-label"></div>
+      </div>
+      <div class="settings-group">
+        <div class="group-label"><span id="ring-label">Ring color</span></div>
+        <div id="ring-modes" class="segmented" role="radiogroup" aria-labelledby="ring-label"></div>
+        <div id="ring-swatches" role="radiogroup" aria-label="Accent color" hidden></div>
+        <p class="settings-hint">Urgency turns rings amber past 60% and red past 85%. The other two keep every ring one color.</p>
+      </div>
+      <div class="settings-group">
+        <div class="group-label"><span id="providers-label">Providers</span><span id="provider-count"></span></div>
+        <div id="provider-settings" aria-labelledby="providers-label"></div>
+      </div>
+      <div class="settings-group">
+        <div class="group-label"><span>System</span></div>
+        <label class="setting"><span class="setting-copy"><span class="setting-name">Start with Windows</span></span><input id="startup" type="checkbox" aria-label="Start with Windows" disabled></label>
+        <label class="setting"><span class="setting-copy"><span class="setting-name">Start minimized to tray</span></span><input id="start-minimized" type="checkbox" aria-label="Start minimized to tray" checked></label>
+        <label class="setting"><span class="setting-copy"><span class="setting-name">Acrylic effect</span></span><input id="acrylic" type="checkbox" aria-label="Acrylic effect" checked></label>
+      </div>
+      <p class="settings-hint">Changes save automatically.</p>
+    </div>
+  </section>
+  <section id="first-run" aria-label="Welcome" hidden>
+    <div class="welcome">
+      <span class="welcome-brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 15v5h16v-5M7 5h10M7 9h10M9 13h6"/></svg><span>TokenTray</span></span>
+      <p>Your AI coding allowances, one click from the tray. TokenTray reads sessions already signed in on this PC — nothing is uploaded, no new logins.</p>
+    </div>
+    <div class="discovery">
+      <div class="group-label"><span>Found on this PC</span></div>
+      <div id="discovery-list"></div>
+    </div>
+    <div class="welcome-actions">
+      <span class="settings-hint">Change any of this in Settings.</span>
+      <button type="button" id="start-monitoring" class="primary">Start monitoring</button>
+    </div>
   </section>
 </main><script type="module" src="app.mjs"></script></body></html>

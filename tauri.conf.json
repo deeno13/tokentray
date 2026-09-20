@@ -13,7 +13,7 @@
         "label": "main",
         "title": "TokenTray",
         "url": "index.html",
-        "width": 440,
+        "width": 400,
         "height": 320,
         "transparent": true,
         "decorations": false,

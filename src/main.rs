@@ -207,13 +207,15 @@ fn main() {
             _ => {}
         })
         .setup(|app| {
-            use tauri::{menu::{Menu, MenuItem, CheckMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}};
-            let open = MenuItem::with_id(app, "open", "Open TokenTray", true, None::<&str>)?;
+            use tauri::{menu::{Menu, MenuItem, CheckMenuItem, PredefinedMenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}};
             let refresh = MenuItem::with_id(app, "refresh", "Refresh usage", true, None::<&str>)?;
+            let open = MenuItem::with_id(app, "open", "Open TokenTray", true, None::<&str>)?;
             let auto = CheckMenuItem::with_id(app, "autostart", "Start with Windows", true, autostart::is_enabled(), None::<&str>)?;
             *app.state::<AppState>().startup_menu.lock().unwrap()=Some(auto.clone());
+            let settings = MenuItem::with_id(app, "settings", "Settings", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit TokenTray", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &refresh, &auto, &quit])?;
+            let (first, second) = (PredefinedMenuItem::separator(app)?, PredefinedMenuItem::separator(app)?);
+            let menu = Menu::with_items(app, &[&refresh, &open, &first, &auto, &settings, &second, &quit])?;
             TrayIconBuilder::with_id("main")
                 .icon(tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?)
                 .tooltip("TokenTray — AI usage limits")
@@ -242,6 +244,8 @@ fn main() {
                 })
                 .on_menu_event(move |app, ev| match ev.id.as_ref() {
                     "open" => show_popup(app), "refresh" => refresh_usage(), "quit" => app.exit(0),
+                    // The popup owns Settings; the tray only asks it to open there.
+                    "settings" => { show_popup(app); use tauri::Emitter; let _ = app.emit("open-settings", ()); }
                     "autostart" => {
                         let result = set_startup(app.clone(),!autostart::is_enabled());
                         if result.is_err() { use tauri::Emitter; let _ = app.emit("notice", "Could not change Windows startup. Try again from the tray menu."); show_popup(app); }
