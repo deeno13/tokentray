@@ -131,7 +131,7 @@ function renderDetail(now) {
   const body=node('div','provider-body'), heading=node('div','detail-heading');
   heading.append(node('span','detail-name',provider.name),node('span','detail-account',accountText(accounts[selected],r.s)));
   body.append(heading);
-  if(!r.windows.length)body.append(node('p','guidance',provider.help));
+  if(['needsAuth','absent'].includes(r.s?.status))body.append(node('p','guidance',provider.help));
   for(const w of r.windows) {
     const row=node('div','window'), line=node('div','window-heading'), p=percent(w);
     const amount=node('strong','',w.count!=null?`~${w.count}`:p==null?'—':`${p}%`);
