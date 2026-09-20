@@ -375,6 +375,7 @@ if(native){
     for(const p of PROVIDERS)await window.__TAURI__.event.listen(p.id==='claude'?'usage':p.id,e=>{snapshots[p.id]=e.payload;render();});
     await window.__TAURI__.event.listen('notice',e=>notice(e.payload));
     await window.__TAURI__.event.listen('open-settings',()=>showPage('settings'));
+    await window.__TAURI__.event.listen('popup-hidden',()=>{if(page!=='first-run')showPage('overview');});
     snapshots=await invoke('get_all');
   }catch{notice('Could not load usage or settings. Restart TokenTray to reconnect.');}
 }else{

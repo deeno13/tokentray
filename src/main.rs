@@ -133,6 +133,10 @@ fn refresh_usage() {
 fn hide_popup(app: AppHandle) {
     app.state::<AppState>().interaction.lock().unwrap().cancel();
     if let Some(w) = app.get_webview_window("main") { let _ = w.hide(); }
+    // The webview persists across hides; let it leave sub-pages like Settings
+    // so the next open starts from the main view.
+    use tauri::Emitter;
+    let _ = app.emit("popup-hidden", ());
 }
 
 #[tauri::command]
