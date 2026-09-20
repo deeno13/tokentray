@@ -44,7 +44,7 @@ async function openFixture(count,viewport={width:440,height:800},colorScheme='li
       windows:[{label:'Current session',used:0.38,resets_at:now+3600000},{label:'Weekly limit',used:0.62,resets_at:now+432000000}],
     }]));
     window.smoke={
-      calls:[],settings:{disabled:ids.slice(count),acrylic:true,start_minimized:true},
+      calls:[],settings:{disabled:ids.slice(count),acrylic:true,start_minimized:true,ring_color:'provider'},
       failSave:false,deferRefresh:false,deferHide:false,
       emit(name,payload){for(const listener of events.get(name)||[])listener({payload});},
     };
@@ -196,8 +196,17 @@ try{
   await codexSetting.click();
   await page.waitForFunction(()=>window.smoke.settings.disabled.includes('codex'));
   assert.equal(await page.locator('[data-provider="codex"]').count(),0,'successful save updates enabled providers');
+  assert.equal(await page.locator('#ring-swatches button').count(),7,'ring color offers the provider default and six presets');
+  assert.equal(await page.locator('#ring-swatches [data-ring="provider"]').getAttribute('aria-checked'),'true','provider colors start selected');
+  await page.locator('#ring-swatches [data-ring="teal"]').click();
+  await page.waitForFunction(()=>window.smoke.settings.ring_color==='teal');
+  assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--ring-color')),'#006d77','ring selection tints the rings in the light scheme');
+  assert.equal(await page.locator('#ring-swatches [data-ring="teal"]').getAttribute('aria-checked'),'true','selected swatch reports its state');
+  await page.locator('#ring-swatches [data-ring="provider"]').click();
+  await page.waitForFunction(()=>window.smoke.settings.ring_color==='provider');
+  assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--ring-color')),'','provider colors clear the ring override');
   await context.close();
-  console.log('PASS live updates between pointerdown/up, DOM/focus stability, Escape, refresh/close single flight, failed/successful setting saves');
+  console.log('PASS live updates between pointerdown/up, DOM/focus stability, Escape, refresh/close single flight, failed/successful setting saves, ring color presets');
   const feedback=await openFixture(8,{width:440,height:620},'light',true);
   const baseline=await settleResizes(feedback.page);
   let detailHeight;

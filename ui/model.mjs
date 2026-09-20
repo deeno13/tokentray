@@ -32,6 +32,24 @@ export function innerWindow(windows) { return (windows || []).slice(1).find(w =>
 
 export function enabledProviders(settings) { const disabled=new Set(settings?.disabled ?? []);return PROVIDERS.filter(p=>!disabled.has(p.id)); }
 
+// Ring color choices. 'provider' keeps each brand's own accent; presets pair a
+// light-scheme hex with a dark-scheme hex so ring contrast holds in both themes.
+export const RING_COLORS = [
+  {id:'provider',name:'Provider colors',light:null,dark:null},
+  {id:'teal',name:'Teal',light:'#006d77',dark:'#6edbd5'},
+  {id:'blue',name:'Blue',light:'#1f6feb',dark:'#58a6ff'},
+  {id:'violet',name:'Violet',light:'#7c3aed',dark:'#a78bfa'},
+  {id:'rose',name:'Rose',light:'#be185d',dark:'#f472b6'},
+  {id:'amber',name:'Amber',light:'#b45309',dark:'#fbbf24'},
+  {id:'green',name:'Green',light:'#15803d',dark:'#4ade80'},
+];
+export function ringHex(id,dark) {
+  const option=RING_COLORS.find(c=>c.id===(id||'provider'))||RING_COLORS[0];
+  return dark?option.dark:option.light;
+}
+const PROVIDER_ACCENTS={light:['#006d77','#a95735','#585b83','#446dc0','#966900','#697180','#656c59','#7957aa'],dark:['#6edbd5','#e5a084','#bbb9ef','#98b4ed','#d6bd7f','#d4d8e3','#b4c3a2','#c4a5f0']};
+export function providerSwatch(dark) { return `conic-gradient(${(dark?PROVIDER_ACCENTS.dark:PROVIDER_ACCENTS.light).join(',')})`; }
+
 // Keep navigation and provider changes from moving the header's click targets.
 export const POPUP_WIDTH = 440;
 export function accountText(account,snapshot,disabled=false){
