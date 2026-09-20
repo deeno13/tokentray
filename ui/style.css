@@ -45,6 +45,10 @@ h1, h2 { font-size: 13px; font-weight: 600; margin: 0; }
 header { padding: 12px var(--page-padding) 11px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-shrink: 0; }
 .brand { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .brand > svg { width: 19px; height: 19px; color: var(--faint); flex-shrink: 0; }
+/* The app mark is the tray icon's open dial, so the two never drift apart.
+   Geometry matches tools/render-icon.mjs; the stroke beats the global svg rule. */
+.mark circle { stroke-width: 4; stroke-linecap: round; }
+.mark .mark-track { stroke-opacity: .3; }
 #freshness { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .actions { display: flex; align-items: center; gap: 2px; }
 .actions button, #back, #settings-close {

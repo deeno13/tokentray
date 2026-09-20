@@ -25,3 +25,5 @@ Settings ends with Start with Windows, Start minimized to tray and the Acrylic s
 # App icon
 
 An open dial, three-quarters round, with the opening at the bottom: the same ring the flyout is built from, and the only mark that can carry a reading at tray size. Rendered from `tools/render-icon.mjs` into `icons/tray.png` and a four-size `icons/icon.ico`, in the shipped teal so it reads on a light or dark taskbar. The 16-pixel raster takes a heavier stroke than the larger ones.
+
+The same dial is the mark inside the popup, in the header and on the welcome page, drawn inline from the same geometry so the tray and the app never show different marks.
