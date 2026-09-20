@@ -26,6 +26,10 @@ export function statusText(s, now=Date.now()) {
 export function ageText(at, now=Date.now()) { if (!at) return 'Not read yet'; const m=Math.max(0,Math.floor((now-at)/60000)); return m<1?'Just now': m<60?`${m}m ago`:`${Math.floor(m/60)}h ago`; }
 export function visibleWindows(s) { return ['needsAuth','absent'].includes(s?.status) ? [] : (s?.windows || []); }
 
+// The provider ring pairs the first allowance window (outer) with the next percentage-bearing
+// window (inner), e.g. a weekly limit beside a 5-hour limit. One window keeps a single ring.
+export function innerWindow(windows) { return (windows || []).slice(1).find(w => percent(w) != null) ?? null; }
+
 export function enabledProviders(settings) { const disabled=new Set(settings?.disabled ?? []);return PROVIDERS.filter(p=>!disabled.has(p.id)); }
 
 // Ring color choices. 'provider' keeps each brand's own accent; presets pair a
@@ -51,8 +55,11 @@ export const POPUP_WIDTH = 440;
 export function accountText(account,snapshot,disabled=false){
   const state=disabled?'Paused':statusText(snapshot);
   if(['needsAuth','absent'].includes(snapshot?.status))return state;
-  const identity=account?.email||(account?.username?'@'+account.username:null)||'Account not reported';
+  // A borrowed credential may carry no address at all (OpenCode's Go key is
+  // account-wide): report what the source has instead of a missing account.
+  const identity=account?.email||(account?.username?'@'+account.username:null);
   const plan=account?.plan?account.plan+' plan':'Plan not reported';
-  if(state==='Updated')return identity+' · '+plan;
-  return identity+' · '+plan+' · '+state;
+  const parts=[identity,plan];
+  if(state!=='Updated')parts.push(state);
+  return parts.filter(Boolean).join(' · ');
 }

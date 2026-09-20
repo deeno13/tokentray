@@ -90,6 +90,8 @@ header { padding: 12px var(--page-padding); display: flex; align-items: center; 
 .ring svg { position: absolute; inset: 0; width: 60px; height: 60px; transform: rotate(-90deg); stroke-width: 3; }
 .track { stroke: var(--track); }
 .fill { stroke: var(--ring-color, var(--accent)); }
+.fill.inner { stroke: color-mix(in srgb, var(--ring-color, var(--accent)) 62%, var(--muted)); }
+.ring svg.single .inner { display: none; }
 .value { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .provider-name, .provider-status { max-width: 100%; min-height: 16px; line-height: 16px; overflow-wrap: anywhere; }
 .provider-name { font-size: 11px; font-weight: 600; }
