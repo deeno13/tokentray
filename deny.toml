@@ -1,0 +1,51 @@
+# cargo-deny configuration for TokenTray.
+#
+# The allow-list below is the exact set of licences present in the resolved
+# dependency graph (286 crates, x86_64-pc-windows-msvc). It is deliberately not
+# a blanket allow: a new dependency carrying an unlisted licence should fail CI
+# and get a deliberate decision rather than slip in unnoticed.
+
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+all-features = true
+
+[advisories]
+# Security advisories always fail the build.
+yanked = "deny"
+# Unmaintained crates are reported for direct dependencies only. A transitive
+# crate going unmaintained is worth knowing about but should not break a release
+# on a day when nothing in this repository changed.
+unmaintained = "workspace"
+ignore = []
+
+[licenses]
+# Permissive, plus MPL-2.0. MPL-2.0 is file-level copyleft and does not affect
+# the licensing of this application; it reaches the tree through the `dirs`
+# crate family (option-ext).
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "MPL-2.0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+confidence-threshold = 0.93
+
+[bans]
+# Duplicate versions are common in this tree (for example bitflags 1.x and 2.x
+# arriving through different parents) and are not worth failing a build over.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

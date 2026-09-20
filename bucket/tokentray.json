@@ -1,0 +1,41 @@
+{
+    "version": "0.1.0",
+    "description": "Monitor AI coding-tool usage from the Windows notification area.",
+    "homepage": "https://github.com/deeno13/tokentray",
+    "license": "MIT",
+    "architecture": {
+        "64bit": {
+            "url": "https://github.com/deeno13/tokentray/releases/download/v0.1.0/tokentray-v0.1.0-windows-x64.exe#/tokentray.exe",
+            "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+    },
+    "bin": "tokentray.exe",
+    "shortcuts": [
+        [
+            "tokentray.exe",
+            "TokenTray"
+        ]
+    ],
+    "notes": [
+        "TokenTray needs the Microsoft Edge WebView2 Runtime:",
+        "  https://developer.microsoft.com/microsoft-edge/webview2/",
+        "",
+        "Settings and cached quota snapshots live in %APPDATA%\\TokenTray and are left in place on uninstall.",
+        "",
+        "Enable 'Start with Windows' from the TokenTray tray menu. The app owns that setting; Scoop does not manage it."
+    ],
+    "checkver": {
+        "github": "https://github.com/deeno13/tokentray"
+    },
+    "autoupdate": {
+        "architecture": {
+            "64bit": {
+                "url": "https://github.com/deeno13/tokentray/releases/download/v$version/tokentray-v$version-windows-x64.exe#/tokentray.exe"
+            }
+        },
+        "hash": {
+            "url": "https://github.com/deeno13/tokentray/releases/download/v$version/SHA256SUMS.txt",
+            "regex": "$sha256\\s+tokentray-v$version-windows-x64\\.exe"
+        }
+    }
+}

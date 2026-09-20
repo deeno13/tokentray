@@ -28,9 +28,27 @@
     }
   },
   "bundle": {
-    "active": false,
+    "active": true,
+    "targets": ["nsis"],
     "icon": [
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "deeno13",
+    "copyright": "Copyright (c) 2026 Im-Midi (NG), Vinz, and deeno13",
+    "shortDescription": "Monitor AI coding-tool usage from the Windows notification area.",
+    "longDescription": "TokenTray reads the sessions already stored by your installed AI coding tools and shows usage, reset times, and connection status in one tray flyout. Monitoring is read-only and there is no login, backend, or telemetry.",
+    "licenseFile": "LICENSE",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "packaging/nsis/hooks.nsh",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      }
+    }
   }
 }

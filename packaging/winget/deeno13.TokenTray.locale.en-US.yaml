@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.defaultLocale.1.6.0.schema.json
+PackageIdentifier: deeno13.TokenTray
+PackageVersion: 0.1.0
+PackageLocale: en-US
+Publisher: deeno13
+PublisherUrl: https://github.com/deeno13
+PublisherSupportUrl: https://github.com/deeno13/tokentray/issues
+Author: deeno13
+PackageName: TokenTray
+PackageUrl: https://github.com/deeno13/tokentray
+License: MIT
+LicenseUrl: https://github.com/deeno13/tokentray/blob/main/LICENSE
+Copyright: Copyright (c) 2026 Im-Midi (NG), Vinz, and deeno13
+ShortDescription: Monitor AI coding-tool usage from the Windows notification area.
+Description: >-
+  TokenTray is a portable Windows tray app that reads the sessions already stored
+  by your installed AI coding tools and shows usage, reset times, and connection
+  status in one flyout. Monitoring is read-only: it starts no agent turns, redeems
+  no reset credits, and edits no provider configuration. There is no login screen,
+  no backend, and no telemetry. Credentials stay in the native layer and are never
+  logged, persisted, or sent to the web view. Missing quota is reported as
+  unavailable, never as zero. Supported providers include Codex, Claude Code,
+  Cursor, Antigravity, GLM, Grok, OpenCode, and GitHub Copilot. Requires the
+  Microsoft Edge WebView2 Runtime.
+Moniker: tokentray
+Tags:
+  - ai
+  - cli
+  - developer-tools
+  - monitoring
+  - taskbar
+  - tray
+  - usage
+ReleaseNotesUrl: https://github.com/deeno13/tokentray/releases/tag/v0.1.0
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0
