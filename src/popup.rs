@@ -1,6 +1,6 @@
 //! Window placement and click ordering, independent of Windows handles.
 
-pub const INITIAL_SIZE: (u32, u32) = (440, 320);
+pub const INITIAL_SIZE: (u32, u32) = (400, 320);
 const EDGE_GAP: f64 = 12.0;
 
 #[derive(Default)]
