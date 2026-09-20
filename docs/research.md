@@ -19,7 +19,7 @@ CodeNotch already contains a Windows Rust/Tauri port in `windows/`. It offers fo
 
 Provider integration is the main maintenance risk. Codex has a documented app-server method, so TokenTray uses that instead of directly copying ChatGPT's internal HTTP endpoint. It prefers `rateLimitsByLimitId` when present and labels windows by their reported duration. The other adapters rely on the owning applications' internal services. A valid credential does not guarantee that the account exposes a quota. Copilot unlimited entitlements do not become fabricated percentage bars, and Antigravity counts are labelled as derived.
 
-Provider errors must not become zero-percent success. Cache freshness is visible. Auth failures hide prior readings. HTTP 429 cooldowns must survive manual refresh and relaunch where the provider returns a deadline. Live testing all eight requires eight eligible signed-in accounts; parsing synthetic fixtures does not establish live compatibility.
+Provider errors must not become zero-percent success. Cache freshness is visible. Auth failures hide prior readings. HTTP 429 cooldowns must survive manual refresh and relaunch where the provider returns a deadline. A cooldown belongs to the account that earned it: a Claude account switch retires the previous account's reading and cooldown instead of applying them to the new credential. Live testing all eight requires eight eligible signed-in accounts; parsing synthetic fixtures does not establish live compatibility.
 
 ## Acrylic decision
 
