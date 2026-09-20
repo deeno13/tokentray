@@ -14,13 +14,14 @@ node --test tests/*.test.mjs
 cargo build --release --locked
 ```
 
-Run `.\target\release\tokentray.exe --show` to inspect the app. After a visual change, regenerate the sample README images:
+Run `.\target\release\tokentray.exe --show` to inspect the app. After a visual change, regenerate the sample README media:
 
 ```powershell
 node tools/capture-screenshots.mjs
+node tools/capture-demo.mjs
 ```
 
-The screenshot tool uses synthetic readings and a mocked native bridge. Do not use real accounts in screenshots.
+Both tools use synthetic readings and a mocked native bridge; the demo recorder also needs ffmpeg on `PATH`. Do not use real accounts in the generated media.
 
 ## Rules
 

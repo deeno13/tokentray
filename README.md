@@ -54,6 +54,13 @@ Unsigned or unavailable providers remain visible with their status.
 
 ## Use TokenTray
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/demo-dark.gif">
+    <img src="docs/media/demo-light.gif" width="400" alt="Opening Claude Code's limit windows in the flyout, then a manual refresh that updates the readings and shows the provider-cooldown notice.">
+  </picture>
+</p>
+
 - **Click** the tray icon to open or close the flyout.
 - **Right-click** for Refresh usage, Open TokenTray, Start with Windows, Settings, and Quit.
 - **Click a provider** to see its limit windows and reset times.
@@ -104,11 +111,14 @@ cargo build --release --locked
 .\target\release\tokentray.exe --show
 ```
 
-The stack is Rust, Tauri 2, and plain HTML/CSS/JavaScript. Provider parsers use synthetic fixtures. To update the README images after a UI change:
+The stack is Rust, Tauri 2, and plain HTML/CSS/JavaScript. Provider parsers use synthetic fixtures. To update the README media after a UI change:
 
 ```powershell
 node tools/capture-screenshots.mjs
+node tools/capture-demo.mjs
 ```
+
+The demo recorder drives real pointer input and needs ffmpeg on `PATH`.
 
 Windows CI runs the tests and locked release build. The Release workflow validates matching `vX.Y.Z` tags and publishes the executable with a SHA-256 checksum.
 
