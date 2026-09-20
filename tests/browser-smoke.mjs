@@ -41,7 +41,7 @@ async function openFixture(count,viewport={width:440,height:800},colorScheme='li
     const now=Date.now();
     const snapshots=Object.fromEntries(ids.map(id=>[id,{
       status:id==='claude'?'needsAuth':'ok',fetched_at:now,
-      windows:[{label:'Current session',used:0.38,resets_at:now+3600000}],
+      windows:[{label:'Current session',used:0.38,resets_at:now+3600000},{label:'Weekly limit',used:0.62,resets_at:now+432000000}],
     }]));
     window.smoke={
       calls:[],settings:{disabled:ids.slice(count),acrylic:true,start_minimized:true},
@@ -155,6 +155,8 @@ try{
 
   const {context,page}=await openFixture(8);
   const codex=page.locator('[data-provider="codex"]');
+  assert.equal(await codex.evaluate(element=>element.querySelectorAll('.fill').length),2,'two windows render inner and outer ring fills');
+  assert.equal(await codex.evaluate(element=>element.querySelector('svg').classList.contains('single')),false,'two windows show both rings');
   await codex.focus();
   await codex.evaluate(element=>window.smoke.originalProvider=element);
   const bounds=await codex.boundingBox();
@@ -168,6 +170,7 @@ try{
   await page.waitForFunction(()=>!document.getElementById('detail').hidden);
   assert.equal(await codex.evaluate(element=>element===document.activeElement),true,'background updates preserve focus');
   assert.match(await codex.innerText(),/57%/);
+  assert.equal(await codex.evaluate(element=>element.querySelector('svg').classList.contains('single')),true,'a single window hides the inner ring');
   await page.locator('#settings').click();
   await page.keyboard.press('Escape');
   assert.equal(await page.locator('#overview').isVisible(),true);
