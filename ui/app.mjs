@@ -1,4 +1,4 @@
-import {PROVIDERS,percent,resetText,statusText,ageText,visibleWindows,enabledProviders,POPUP_WIDTH,accountText} from './model.mjs';
+import {PROVIDERS,percent,resetText,statusText,ageText,visibleWindows,innerWindow,enabledProviders,POPUP_WIDTH,accountText} from './model.mjs';
 const native = !!window.__TAURI__;
 const invoke = (name,args) => window.__TAURI__.core.invoke(name,args);
 const $ = id => document.getElementById(id);
@@ -27,15 +27,15 @@ function createProviderButton(provider) {
   const ring=node('span','ring'), value=node('strong','value');
   const ns='http://www.w3.org/2000/svg', svg=document.createElementNS(ns,'svg');
   svg.setAttribute('viewBox','0 0 64 64');svg.setAttribute('aria-hidden','true');
-  let fill;
-  for(const type of ['track','fill']) {
-    const circle=document.createElementNS(ns,'circle');circle.setAttribute('cx','32');circle.setAttribute('cy','32');circle.setAttribute('r','28');circle.setAttribute('class',type);
-    if(type==='fill')fill=circle;svg.append(circle);
+  const fills={};
+  for(const which of ['outer','inner'])for(const type of ['track','fill']) {
+    const circle=document.createElementNS(ns,'circle');circle.setAttribute('cx','32');circle.setAttribute('cy','32');circle.setAttribute('r',which==='outer'?'28':'22');circle.setAttribute('class',type+' '+which);
+    if(type==='fill')fills[which]=circle;svg.append(circle);
   }
   ring.append(svg,value);
   const status=node('span','provider-status');button.append(ring,node('span','provider-name',provider.name),status);
   button.addEventListener('click',()=>{selected=selected===provider.id?null:provider.id;render();});
-  return {button,value,status,fill};
+  return {button,value,status,fills,svg};
 }
 function render() {
   const providers=enabledProviders(settings);
@@ -44,14 +44,20 @@ function render() {
   for(const child of [...list.children])if(!enabled.has(child.dataset.provider))child.remove();
   for(const [position,provider] of providers.entries()) {
     const s=snapshots[provider.id], windows=visibleWindows(s), p=percent(windows[0]);
+    const inner=innerWindow(windows), ip=percent(inner);
     if(!providerButtons.has(provider.id))providerButtons.set(provider.id,createProviderButton(provider));
     const entry=providerButtons.get(provider.id), {button}=entry;
     button.setAttribute('aria-expanded',String(selected===provider.id));
     const value=windows[0]?.count!=null?'~'+windows[0].count:p==null?'—':p+'%';
     const st=statusText(s);
-    button.setAttribute('aria-label',provider.name+': '+(p==null&&windows[0]?.count==null?st:value+', '+st)+'. '+(selected===provider.id?'Hide':'Show')+' details');
+    const parts=[];
+    if(p!=null)parts.push(windows[0].label+' '+p+'%');else if(windows[0]?.count!=null)parts.push(windows[0].label+' ~'+windows[0].count);
+    if(ip!=null)parts.push(inner.label+' '+ip+'%');
+    button.setAttribute('aria-label',provider.name+': '+(parts.length?parts.join(', ')+', '+st:st)+'. '+(selected===provider.id?'Hide':'Show')+' details');
     entry.value.textContent=value;entry.status.textContent=st;
-    entry.fill.setAttribute('stroke-dasharray',Math.min(100,p??0)*1.7593+' 175.93');
+    entry.svg.classList.toggle('single',ip==null);
+    entry.fills.outer.setAttribute('stroke-dasharray',Math.min(100,p??0)*1.7593+' 175.93');
+    entry.fills.inner.setAttribute('stroke-dasharray',Math.min(100,ip??0)*1.3823+' 138.23');
     if(list.children[position]!==button)list.insertBefore(button,list.children[position]??null);
   }
   if(!providers.length)list.append(node('p','empty','No providers enabled. Choose providers in Settings.'));
