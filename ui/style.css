@@ -232,8 +232,8 @@ progress::-webkit-progress-value { background: var(--ring-color, var(--accent));
 .setting:active { background: var(--pressed); }
 .setting:has(input:disabled) { cursor: wait; }
 .setting-copy { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; min-width: 0; }
-.setting-name { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.account-details { font-size: 11px; color: var(--faint); text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.setting-name { flex: 0 0 auto; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.account-details { flex: 1 1 auto; font-size: 11px; color: var(--faint); text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .setting input {
   width: 30px;
   height: 18px;
