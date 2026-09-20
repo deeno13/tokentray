@@ -1,4 +1,4 @@
-import {PROVIDERS,percent,resetText,shortResetText,statusText,ageText,visibleWindows,innerWindow,enabledProviders,POPUP_WIDTH,accountText,tileStatus,oldestRead,reportingCount,discovery,LAYOUTS,layoutId,RING_MODES,RING_ACCENTS,DEFAULT_ACCENT,RING_COLORS,ringMode,ringHex,accentHex,toneHex,providerSwatch} from './model.mjs';
+import {PROVIDERS,percent,resetText,shortResetText,statusText,ageText,cooldownText,visibleWindows,innerWindow,enabledProviders,POPUP_WIDTH,accountText,tileStatus,oldestRead,reportingCount,discovery,LAYOUTS,layoutId,RING_MODES,RING_ACCENTS,DEFAULT_ACCENT,RING_COLORS,ringMode,ringHex,accentHex,toneHex,providerSwatch} from './model.mjs';
 const native = !!window.__TAURI__;
 const invoke = (name,args) => window.__TAURI__.core.invoke(name,args);
 const $ = id => document.getElementById(id);
@@ -146,7 +146,8 @@ function renderDetail(now) {
     const reset=node('span','reset',w.count!=null?'Activity only':resetText(w.resets_at,now)+(when?' · '+when.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'}):''));
     if(when)reset.title=when.toLocaleString();row.append(reset);body.append(row);
   }
-  if(r.s?.note&&r.s.note!=='Codex app-server')body.append(node('p','guidance',r.s.note));
+  const note=cooldownText(r.s,now)??r.s?.note;
+  if(note&&note!=='Codex app-server')body.append(node('p','guidance',note));
   body.append(node('div','source',`${provider.source} · ${ageText(r.s?.fetched_at,now)}`));
   if(selected!==revealedProvider)body.classList.add('detail-enter');
   $('detail').className=provider.id;$('detail').append(body);

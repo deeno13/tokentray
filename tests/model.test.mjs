@@ -23,7 +23,14 @@ test('urgency tones escalate at 60% and 85% and never invent a tone for a missin
 test('ring hex follows the mode and leaves provider colors to CSS',()=>{assert.equal(ringHex('teal',90,false),'#006d77');assert.equal(ringHex('teal',90,true),'#6edbd5');assert.equal(ringHex('provider',90,true),null);assert.equal(ringHex('urgency',90,true),'#f0857c');assert.equal(ringHex('urgency',10,true),'#5fd3ae');assert.equal(ringHex('urgency',null,true),null);assert.equal(accentHex('provider',true),null);});
 test('provider swatch is a two-scheme gradient of brand accents',()=>{assert.match(providerSwatch(false),/^conic-gradient\(/);assert.notEqual(providerSwatch(false),providerSwatch(true));});
 
-import {shortResetText,tileStatus,oldestRead,layoutId,LAYOUTS,reportingCount,discovery} from '../ui/model.mjs';
+import {shortResetText,tileStatus,oldestRead,layoutId,LAYOUTS,reportingCount,discovery,cooldownText} from '../ui/model.mjs';
+test('a cooldown counts down from its deadline instead of repeating frozen text',()=>{const now=1e12;
+  assert.equal(cooldownText({status:'backoff',backoff_until:now+3600000},now),'Rate limited, retrying in 1h');
+  assert.equal(cooldownText({status:'backoff',backoff_until:now+30000},now),'Rate limited, retrying in 30s');
+  assert.equal(cooldownText({status:'stale',backoff_until:now+90000},now),'Rate limited, retrying in 2m');
+  assert.equal(cooldownText({status:'backoff',backoff_until:now-1},now),null);
+  assert.equal(cooldownText({status:'ok',backoff_until:now+3600000},now),null);
+  assert.equal(cooldownText({status:'backoff'},now),null);assert.equal(cooldownText(undefined,now),null);});
 test('short countdown drops the lead-in and the hour once a reset is days away',()=>{const now=1e12;assert.equal(shortResetText(now+45*60000,now),'45m');assert.equal(shortResetText(now+3840000,now),'1h 4m');assert.equal(shortResetText(now+7200000,now),'2h');assert.equal(shortResetText(now+1800000000,now),'20d');assert.equal(shortResetText(null,now),null);assert.equal(shortResetText(now-1,now),'due');});
 test('a tile reports the next reset, or the reason there is no reading',()=>{const now=1e12;
   assert.deepEqual(tileStatus({status:'ok',fetched_at:now,windows:[{used:.2,resets_at:now+3840000}]},now),{text:'1h 4m',tone:'muted'});
