@@ -267,8 +267,11 @@ fn set_and_broadcast(app: &AppHandle, mutate: impl FnOnce(&mut UsageSnapshot)) {
         if u.status == "needsAuth" { u.windows.clear(); u.fetched_at = 0; }
         u.clone()
     };
+    // needsAuth means the credential is gone, so the account goes with it.
+    // Every other status keeps a live reading or a cooldown: the account is
+    // local display metadata and does not depend on the usage endpoint.
     if snap.status == "needsAuth" { crate::account::publish(app,"claude",Default::default()); }
-    else if snap.status == "ok" || snap.status == "unavailable" { crate::account::publish(app,"claude",crate::account::claude()); }
+    else if matches!(snap.status.as_str(), "ok" | "unavailable" | "stale" | "backoff" | "error") { crate::account::publish(app,"claude",crate::account::claude()); }
     persist(&snap);
     let _ = app.emit("usage", &snap);
 }

@@ -36,6 +36,16 @@ export function statusText(s, now=Date.now()) {
   return ({ok:'Updated',stale:'Stale',needsAuth:'Sign-in needed',absent:'Not connected',unavailable:'Unavailable',error:'Connection error',backoff:'Cooling down',derived:'Activity count'})[s.status] || 'Unavailable';
 }
 export function ageText(at, now=Date.now()) { if (!at) return 'Not read yet'; const m=Math.max(0,Math.floor((now-at)/60000)); return m<1?'Just now': m<60?`${m}m ago`:`${Math.floor(m/60)}h ago`; }
+
+// The cooldown deadline outlives the note that announced it, so the details panel
+// counts the remaining time down from backoff_until instead of repeating frozen text.
+export function cooldownText(s, now=Date.now()) {
+  if (!['backoff','stale'].includes(s?.status)) return null;
+  if (!Number.isFinite(s?.backoff_until) || s.backoff_until <= now) return null;
+  const secs = Math.ceil((s.backoff_until - now)/1000);
+  const wait = secs < 60 ? `${secs}s` : shortResetText(s.backoff_until, now);
+  return `Rate limited, retrying in ${wait}`;
+}
 export function visibleWindows(s) { return ['needsAuth','absent'].includes(s?.status) ? [] : (s?.windows || []); }
 
 // The provider ring pairs the first allowance window (outer) with the next percentage-bearing
