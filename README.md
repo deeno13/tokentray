@@ -1,41 +1,101 @@
 # TokenTray
 
-AI agent usage limits, one click from your Windows tray. A compact Fluent flyout with native Windows Acrylic, light/dark appearance, a compact grid of progress rings and reset countdowns.
+**Monitor AI coding-tool usage from the Windows notification area.**
 
-**Early development build.** Eight provider adapters are implemented; availability depends on each installed tool, account and endpoint. Internal provider endpoints may change. Missing data is shown as unavailable, never as zero usage.
+[![Windows](https://github.com/deeno13/tokentray/actions/workflows/windows.yml/badge.svg)](https://github.com/deeno13/tokentray/actions/workflows/windows.yml)
+[![Latest release](https://img.shields.io/github/v/release/deeno13/tokentray?sort=semver)](https://github.com/deeno13/tokentray/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Run
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/media/overview-dark.png">
+    <img src="docs/media/overview-light.png" width="400" alt="TokenTray showing usage rings for supported AI coding tools.">
+  </picture>
+</p>
 
-Download `TokenTray-windows-x64` from the private repository's **Actions → Windows → Artifacts**, extract it and run `tokentray.exe`. Windows 10/11 x64 with Microsoft Edge WebView2 Runtime is required. The build is unsigned; signing and an installer are future work.
+TokenTray is a portable Windows app. It reads the sessions already stored by your AI tools and shows usage, reset times, and connection status in one flyout. It has no login screen, backend, or telemetry.
 
-The popup keeps a consistent 400 logical-pixel width across overview, details and Settings. The grid layout lays provider rings out in four fixed columns; height follows the visible content, with scrolling when needed to fit the monitor work area. Settings shows the available email or username, reported plan and connection state. Account display metadata stays in memory; it is not saved in quota caches. A credential that carries no address, such as OpenCode's Go key, shows its plan instead of an account placeholder; an unreported plan is still called out.
+> Early development build. Provider availability depends on the installed tool, account, and endpoint. Missing data is shown as *unavailable*, never as zero.
 
-Click the tray icon to open the flyout; click it again to close it. It opens at the bottom-right of the tray monitor, with a 12 logical-pixel gap from the taskbar and screen edges. This gap scales with the monitor DPI and stays anchored when the content changes. Click a provider to reveal its limit windows. Settings lets you enable or disable each provider, switch the overview between the ring grid and a full-width stack, and pick how rings are colored: **Urgency** (the default, amber past 60% and red past 85%), **One accent** (one of six hues for every ring), or **Per provider** (each brand's own). Choices survive restarts and disabled providers skip future checks (an in-flight check may finish). Escape returns from Settings or details, then closes the popup. Clicking outside closes it. Right click the tray for Refresh usage, Open TokenTray, Start with Windows (opt-in), Settings, or Quit. If Windows puts the icon in the overflow, drag it into the visible notification area. `tokentray.exe --show` opens the flyout at launch.
+## Install
 
-Settings also has **Start with Windows** (off by default) and **Start minimized to tray** (on by default). The first registers this executable for your Windows sign-in, without administrator access; the second controls whether a new launch opens the popup. Turning minimized startup off opens the popup on both manual and Windows startup launches. Opening the executable while it is already running shows the existing popup; an automatic startup launch leaves that instance undisturbed. Keep the portable executable in a permanent folder before enabling startup; if you move it, switch startup off and on to update its path. The tray menu's startup switch stays in sync with Settings.
+Requirements:
 
-The Acrylic switch in Settings switches to an opaque surface. High-contrast and reduced-transparency browser preferences request the same fallback. Native material rendering varies with Windows version and compositor settings.
+- Windows 10 or 11, x64
+- [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+- At least one supported tool, installed and signed in
 
-## Provider connections
+Download `tokentray-<version>-windows-x64.exe` from the [latest release](https://github.com/deeno13/tokentray/releases/latest). There is no installer and no administrator access is required. Keep the executable in a permanent folder if you enable **Start with Windows**.
 
-| Provider | Source | Setup |
+Releases include `SHA256SUMS.txt`:
+
+```powershell
+Get-FileHash .\tokentray-v0.1.0-windows-x64.exe -Algorithm SHA256
+```
+
+The executable is unsigned, so Windows SmartScreen may warn on first run. Verify the hash before choosing **More info → Run anyway**.
+
+## Supported providers
+
+TokenTray reuses credentials from the vendor's own Windows tool. It never asks you to sign in.
+
+| Provider | Source | Requirement |
 |---|---|---|
-| Codex | Documented `codex app-server` / `account/rateLimits/read` | Native Codex CLI signed in with ChatGPT; API-key-only quotas are not subscription allowances |
-| Claude Code | Claude usage endpoint | Existing `.claude/.credentials.json`; honors `CLAUDE_CONFIG_DIR` |
-| Cursor | Usage summary endpoint | Signed-in editor; read-only `state.vscdb` |
-| Antigravity | Local language-server bridge, Google quota API, then derived activity count | Installed and signed-in Antigravity; a count is explicitly not a quota percentage |
-| GLM | Z.ai / BigModel Coding Plan monitor | Existing Z.ai key in Claude Code, ZCode or OpenCode; encrypted ZCode keys are skipped |
-| Grok | Grok Build billing endpoint | xAI-issued Grok CLI session in `.grok/auth.json` |
-| OpenCode | OpenCode **Go plan** usage | `opencode-go` credential; unrelated vendor API keys are not counted as Go usage |
-| GitHub Copilot | GitHub Copilot quota endpoint | GitHub CLI signed in to a Copilot account, or inherited `GH_TOKEN` / `GITHUB_TOKEN` |
+| **Codex** | `codex app-server` / `account/rateLimits/read` | Native Codex CLI signed in with ChatGPT |
+| **Claude Code** | Usage endpoint | `.claude/.credentials.json`; honors `CLAUDE_CONFIG_DIR` |
+| **Cursor** | Usage summary | Signed-in editor; reads `state.vscdb` only |
+| **Antigravity** | Local bridge, quota API, or derived activity count | Installed and signed in; a derived count is not a quota percentage |
+| **GLM** | Z.ai / BigModel Coding Plan | Existing key in Claude Code, ZCode, or OpenCode |
+| **Grok** | Grok Build billing endpoint | `.grok/auth.json` with an xAI session |
+| **OpenCode** | OpenCode Go usage | `opencode-go` credential; other API keys are ignored |
+| **GitHub Copilot** | Copilot quota endpoint | GitHub CLI sign-in or `GH_TOKEN` / `GITHUB_TOKEN` |
 
-No new login UI, backend service, telemetry, or key uploads. Credentials never enter the web frontend or repository. Native adapters read existing sessions and contact the corresponding provider directly. Codex owns its own authentication when its app-server is invoked; TokenTray does not manage its credentials. Monitoring starts no AI turns and redeems no reset credits.
+Unsigned or unavailable providers remain visible with their status.
 
-Provider, appearance and minimized-start preferences are saved in config.json; quota snapshots are cached under `%APPDATA%\TokenTray`; no prompts or answers are saved. Antigravity's inherited fallback scans local activity logs to derive a count. Stale readings retain their timestamp. Windows-native credentials are supported; WSL-only sign-ins and multiple accounts need later work.
+## Use TokenTray
 
-## Develop and verify
+- **Click** the tray icon to open or close the flyout.
+- **Right-click** for Refresh usage, Open TokenTray, Start with Windows, Settings, and Quit.
+- **Click a provider** to see its limit windows and reset times.
+- **Press Escape** to return, then close the flyout.
 
-Install Rust stable with the MSVC toolchain, Visual Studio C++ Build Tools, Windows SDK and WebView2. Then:
+The flyout opens at the bottom-right of the tray monitor with a DPI-scaled 12-pixel inset. Clicking elsewhere closes it.
+
+Settings controls:
+
+- Providers: enable or disable checks.
+- Layout: four-column rings or full-width stack.
+- Ring color: Urgency, One accent, or Per provider.
+- Acrylic: use an opaque surface instead.
+- Start with Windows: per-user and off by default.
+- Start minimized to tray: on by default.
+
+Settings survive restarts. Account metadata is shown in memory only.
+
+Command-line flags:
+
+| Flag | Effect |
+|---|---|
+| `--show` | Open the flyout at launch |
+| `--startup` | Mark a Windows sign-in launch |
+| `--inspect` | Keep the flyout visible for Windows UI automation |
+
+Launching an existing executable reuses the running instance.
+
+## Privacy and security
+
+- Credentials stay in Rust. They are never logged, persisted, or sent to JavaScript.
+- Monitoring is read-only: it starts no agent turns, redeems no reset credits, and edits no provider configuration.
+- Manual refresh honors provider cooldowns.
+- `%APPDATA%\TokenTray\config.json` stores preferences. Quota snapshots are cached there.
+- Credentials, prompts, answers, and account metadata are not stored in those files.
+- Stale readings retain their original timestamp.
+
+Report security issues privately through [SECURITY.md](SECURITY.md).
+
+## Build from source
+
+You need Windows 10/11 x64, Rust stable with MSVC, Visual Studio C++ Build Tools, the Windows SDK, WebView2, and Node.js 22+.
 
 ```powershell
 cargo test --release --locked
@@ -44,12 +104,29 @@ cargo build --release --locked
 .\target\release\tokentray.exe --show
 ```
 
-Windows CI runs the parser tests, frontend model tests and release compilation, then uploads a private portable executable. It does not publish a release or deploy anything. The committed Cargo.lock records the dependency versions resolved by the Windows runner; CI enforces it with `--locked`.
+The stack is Rust, Tauri 2, and plain HTML/CSS/JavaScript. Provider parsers use synthetic fixtures. To update the README images after a UI change:
 
-The `ui/` folder can be served by any static server for design review. Browser preview always labels its synthetic sample data; native execution uses only provider readings.
+```powershell
+node tools/capture-screenshots.mjs
+```
 
-With an existing Playwright installation and Microsoft Edge, run `node tests/browser-smoke.mjs` for layout and click checks. Optional positional arguments accept the Playwright package path and a Chromium browser executable path. The harness starts a temporary local server, uses synthetic provider data and a mocked native bridge, and saves screenshots under `ui-test-results/`. It checks UI behavior; native placement is covered by the Rust geometry tests and needs a live Windows tray check for end-to-end verification.
+Windows CI runs the tests and locked release build. The Release workflow validates matching `vX.Y.Z` tags and publishes the executable with a SHA-256 checksum.
 
-For Windows UI automation, `tokentray.exe --inspect` exposes the same flyout as a taskbar window and keeps it open on blur. This developer-only mode makes it discoverable to automation tools that filter out tray/tool windows. Escape and Close still hide it. Normal launches keep tray-only behavior and dismiss on blur.
+## Troubleshooting
 
-See [stack research](docs/research.md) and [third-party notices](THIRD_PARTY_NOTICES.md).
+- **SmartScreen warning:** verify `SHA256SUMS.txt`; the build is unsigned.
+- **Missing tray icon:** open the `^` overflow and drag TokenTray into the notification area.
+- **Provider unavailable:** sign in with the vendor's Windows tool. WSL-only sign-ins and multiple accounts are not supported.
+- **Antigravity shows a count:** this is a derived activity count, not a quota percentage.
+- **Startup stopped working:** disable and re-enable it after moving the executable.
+- **Opaque popup:** Acrylic may be disabled or unavailable because of Windows accessibility settings.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Release history is in [CHANGELOG.md](CHANGELOG.md).
+
+## License and attribution
+
+MIT — see [LICENSE](LICENSE). TokenTray reuses MIT code and assets from [CodeNotch](https://github.com/vinzdg/codenotch); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+TokenTray is not affiliated with CodeNotch or any provider vendor.
