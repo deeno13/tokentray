@@ -154,7 +154,9 @@ try{
   }
 
   const {context,page}=await openFixture(8);
+  const ringTurn=id=>page.locator('[data-provider="'+id+'"] svg').evaluate(element=>element.style.transform);
   const codex=page.locator('[data-provider="codex"]');
+  assert.equal(await ringTurn('codex'),'','rings rest at the stylesheet angle');
   assert.equal(await codex.evaluate(element=>element.querySelectorAll('.fill').length),2,'two windows render inner and outer ring fills');
   assert.equal(await codex.evaluate(element=>element.querySelector('svg').classList.contains('single')),false,'two windows show both rings');
   await codex.focus();
@@ -194,9 +196,28 @@ try{
   assert.equal(await page.evaluate(()=>document.documentElement.style.getPropertyValue('--slide-ms')),'140ms','the fade runs for as long as the slide');
   await page.waitForFunction(()=>getComputedStyle(document.querySelector('.flyout')).opacity==='1');
 
+  const emitReading=(id,fetchedAt)=>page.evaluate(({channel,fetchedAt})=>window.smoke.emit(channel,{
+    status:'ok',fetched_at:fetchedAt,windows:[{label:'Current session',used:0.42,resets_at:Date.now()+3600000}],
+  }),{channel:id==='claude'?'usage':id,fetchedAt});
+  await emitReading('codex',1);
+  assert.equal(await ringTurn('codex'),'rotate(270deg)','a rebroadcast of an older reading does not turn the ring');
+  assert.equal(await ringTurn('claude'),'','one provider\'s arrival leaves the other rings still');
+  const arrival=Date.now()+1000;
+  await emitReading('codex',arrival);
+  assert.equal(await ringTurn('codex'),'rotate(630deg)','a reading that lands on its own turns its ring one full turn');
+  await emitReading('codex',arrival);
+  assert.equal(await ringTurn('codex'),'rotate(630deg)','a repeated broadcast of the same reading does not turn again');
   await page.evaluate(()=>{window.smoke.deferRefresh=true;document.getElementById('refresh').click();document.getElementById('refresh').click();});
   assert.equal(await page.evaluate(()=>window.smoke.calls.filter(call=>call.name==='refresh_usage').length),1,'rapid refreshes share one pending request');
+  assert.equal(await ringTurn('codex'),'rotate(990deg)','a refresh request turns every ring one full turn');
+  await emitReading('codex',Date.now()+2000);
+  assert.equal(await ringTurn('codex'),'rotate(990deg)','the arrival answering a manual request does not turn again');
   await page.evaluate(()=>window.smoke.finishRefresh());
+  await page.waitForFunction(()=>!document.getElementById('refresh').disabled);
+  await page.emulateMedia({reducedMotion:'reduce'});
+  await page.evaluate(()=>document.getElementById('refresh').click());
+  assert.equal(await ringTurn('codex'),'rotate(990deg)','reduced motion leaves the rings still');
+  await page.emulateMedia({reducedMotion:null});
   await page.locator('#settings').click();
   const codexSetting=page.locator('#provider-settings input[aria-label="Codex"]');
   await page.evaluate(()=>window.smoke.failSave=true);
