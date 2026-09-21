@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1] - 2026-09-21
+
+### Fixed
+
+- The Settings page no longer shows a second close icon beside the header's close control.
+- `install.ps1` and the Scoop autoupdate accept `sha256sum`'s binary-mode marker instead of failing to match the release asset name.
+
+[0.1.1]: https://github.com/deeno13/tokentray/releases/tag/v0.1.1
+
 ## [0.1.0] - 2026-09-21
 
 First public release.

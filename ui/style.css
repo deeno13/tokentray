@@ -51,7 +51,7 @@ header { padding: 12px var(--page-padding) 11px; display: flex; align-items: cen
 .mark .mark-track { stroke-opacity: .3; }
 #freshness { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .actions { display: flex; align-items: center; gap: 2px; }
-.actions button, #back, #settings-close {
+.actions button, #back {
   width: var(--control-size);
   height: var(--control-size);
   padding: 0;
@@ -63,8 +63,8 @@ header { padding: 12px var(--page-padding) 11px; display: flex; align-items: cen
   border-radius: 6px;
   color: var(--faint);
 }
-.actions button:not(:disabled):hover, #back:hover, #settings-close:hover { background: var(--hover); color: var(--ink); }
-.actions button:not(:disabled):active, #back:active, #settings-close:active { background: var(--pressed); }
+.actions button:not(:disabled):hover, #back:hover { background: var(--hover); color: var(--ink); }
+.actions button:not(:disabled):active, #back:active { background: var(--pressed); }
 #settings[aria-expanded=true] { background: var(--pressed); color: var(--ink); }
 
 #overview, #settings-page, #first-run {

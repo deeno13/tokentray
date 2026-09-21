@@ -56,7 +56,7 @@ fn read_once(app: &AppHandle) -> Result<Vec<LimitWindow>, &'static str> {
         }
     });
     let result = (|| {
-        writeln!(input, "{}", json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"tokentray","title":"TokenTray","version":"0.1.0"}}})).map_err(|_| "Codex connection closed.")?;
+        writeln!(input, "{}", json!({"id":1,"method":"initialize","params":{"clientInfo":{"name":"tokentray","title":"TokenTray","version":env!("CARGO_PKG_VERSION")}}})).map_err(|_| "Codex connection closed.")?;
         input.flush().map_err(|_| "Codex connection closed.")?;
         let deadline = Instant::now() + Duration::from_secs(25);
         loop {
