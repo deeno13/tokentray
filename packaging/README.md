@@ -32,16 +32,17 @@ why this note lives one level up.
 The initial package must be opened as a pull request by hand. The automated job
 in `.github/workflows/release.yml` only updates a package that already exists.
 
-1. Publish the `v0.1.0` release so the installer URL resolves.
-2. Replace the placeholder `InstallerSha256` in
-   `winget/deeno13.TokenTray.installer.yaml` with the real digest from the
-   release's `SHA256SUMS.txt`:
+1. Publish the release so the installer URL resolves. `v0.1.0` is published and
+   its `InstallerSha256` is already filled in.
+2. For a later version, replace `InstallerSha256` with the digest of that
+   release's setup executable, taken from its `SHA256SUMS.txt`:
 
    ```powershell
    (Get-FileHash .\tokentray-v0.1.0-windows-x64-setup.exe -Algorithm SHA256).Hash
    ```
 
-   A manifest submitted with the zero placeholder will fail validation.
+   Note `SHA256SUMS.txt` lists names in binary mode (`<hex> *<name>`); the
+   asterisk is a `sha256sum` marker, not part of the filename.
 3. Validate locally:
 
    ```powershell

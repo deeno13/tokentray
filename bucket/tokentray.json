@@ -6,7 +6,7 @@
     "architecture": {
         "64bit": {
             "url": "https://github.com/deeno13/tokentray/releases/download/v0.1.0/tokentray-v0.1.0-windows-x64.exe#/tokentray.exe",
-            "hash": "0000000000000000000000000000000000000000000000000000000000000000"
+            "hash": "a4b7ca69007ead35fd41ca87939fad677f1b8a5ff745bcd4195521d637b96851"
         }
     },
     "bin": "tokentray.exe",
@@ -35,7 +35,7 @@
         },
         "hash": {
             "url": "https://github.com/deeno13/tokentray/releases/download/v$version/SHA256SUMS.txt",
-            "regex": "$sha256\\s+tokentray-v$version-windows-x64\\.exe"
+            "regex": "$sha256\\s+\\*?tokentray-v$version-windows-x64\\.exe"
         }
     }
 }

@@ -11,8 +11,6 @@ UpgradeBehavior: install
 Installers:
   - Architecture: x64
     InstallerUrl: https://github.com/deeno13/tokentray/releases/download/v0.1.0/tokentray-v0.1.0-windows-x64-setup.exe
-    # PLACEHOLDER. Replace with the real SHA-256 from the release's SHA256SUMS.txt
-    # before submitting. Do not submit this file with zeros.
-    InstallerSha256: '0000000000000000000000000000000000000000000000000000000000000000'
+    InstallerSha256: '9296FFB04D25BF02593BB20D4816E2A18F5F6CA381A027E3B8D0E2E859E09873'
 ManifestType: installer
 ManifestVersion: 1.6.0
