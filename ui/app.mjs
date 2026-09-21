@@ -360,7 +360,6 @@ async function hide() {
   try{await invoke('hide_popup');}catch{notice('Could not close popup. Use the tray menu to quit.');}finally{hiding=false;}
 }
 $('close').addEventListener('click',hide);
-$('settings-close').addEventListener('click',hide);
 document.addEventListener('keydown',e=>{
   if(e.key!=='Escape'||e.defaultPrevented||e.isComposing)return;
   e.preventDefault();
