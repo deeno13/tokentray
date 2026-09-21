@@ -13,10 +13,15 @@ jobs:
   release:
     runs-on: windows-latest
     timeout-minutes: 45
+    # Configure "release" under Settings -> Environments with a required reviewer
+    # for this gate to actually hold; an unconfigured environment does not block.
+    environment: release
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.tag || github.ref }}
       - name: Resolve release tag
@@ -33,28 +38,61 @@ jobs:
           echo "tag=${{ steps.tag.outputs.name }} Cargo.toml=$crate tauri.conf.json=$bundle"
           test "v$crate" = "${{ steps.tag.outputs.name }}"
           test "$crate" = "$bundle"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
       - name: Frontend regression checks
         run: node --test tests/*.test.mjs
       - name: Install Rust
         run: rustup update stable --no-self-update
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
       - name: Rust regression checks
         run: cargo test --release --locked
-      - name: Build portable Windows executable
-        run: cargo build --release --locked
-      - name: Stage the release asset and its checksum
+      # The Tauri release does not publish a checksum for the CLI archive, so
+      # the expected digest is pinned here alongside the version.
+      - name: Install the Tauri CLI
         shell: bash
+        env:
+          TAURI_CLI_VERSION: '2.11.5'
+          TAURI_CLI_SHA256: '0768231574a4bea9229fd151c17dbe0118c95955630910a507c3b7f098b09531'
         run: |
+          set -euo pipefail
+          asset='cargo-tauri-x86_64-pc-windows-msvc.zip'
+          curl -fsSL -o "$asset" \
+            "https://github.com/tauri-apps/tauri/releases/download/tauri-cli-v${TAURI_CLI_VERSION}/$asset"
+          actual=$(sha256sum "$asset" | cut -d' ' -f1 | tr 'A-F' 'a-f')
+          if [ "$actual" != "$TAURI_CLI_SHA256" ]; then
+            echo "tauri-cli checksum mismatch: expected $TAURI_CLI_SHA256, got $actual" >&2
+            exit 1
+          fi
+          unzip -o -q "$asset"
+          ./cargo-tauri.exe --version
+      - name: Build the installer and the portable executable
+        run: ./cargo-tauri.exe build -- --locked
+      - name: Stage the release assets and their checksums
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
           mkdir -p dist
-          cp target/release/tokentray.exe dist/tokentray-${{ steps.tag.outputs.name }}-windows-x64.exe
+          cp target/release/tokentray.exe "dist/tokentray-$TAG-windows-x64.exe"
+          cp "target/release/bundle/nsis/TokenTray_${version}_x64-setup.exe" \
+             "dist/tokentray-$TAG-windows-x64-setup.exe"
           cd dist
-          sha256sum tokentray-${{ steps.tag.outputs.name }}-windows-x64.exe > SHA256SUMS.txt
+          sha256sum tokentray-*.exe > SHA256SUMS.txt
           cat SHA256SUMS.txt
+      # Binds the exact bytes published below to this commit and this workflow run.
+      # Verified by consumers with: gh attestation verify <asset> -R deeno13/tokentray
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/tokentray-${{ steps.tag.outputs.name }}-windows-x64.exe
+            dist/tokentray-${{ steps.tag.outputs.name }}-windows-x64-setup.exe
       - name: Publish the GitHub release
         shell: bash
         env:
@@ -63,15 +101,30 @@ jobs:
         run: |
           notes=$(mktemp)
           {
-            echo "Portable Windows x64 build. Download the \`.exe\`, keep it in a permanent folder and run it; no installer and no administrator access are needed."
+            echo "Windows 10/11 x64. Two downloads, both per-user and neither needing administrator access:"
             echo
-            echo "Windows 10/11 x64 with the Microsoft Edge WebView2 Runtime is required."
+            echo "| File | Use |"
+            echo "|---|---|"
+            echo "| \`tokentray-$TAG-windows-x64-setup.exe\` | Installer. Adds a Start Menu entry, registers in Apps & Features, and installs the WebView2 Runtime if it is missing. |"
+            echo "| \`tokentray-$TAG-windows-x64.exe\` | Portable. Keep it in a permanent folder and run it. Needs the WebView2 Runtime already installed. |"
             echo
-            echo "The executable is **unsigned**, so Windows SmartScreen shows a warning on first run. Verify the download against \`SHA256SUMS.txt\` before trusting it:"
+            echo "The Microsoft Edge WebView2 Runtime is required either way; the installer will fetch it for you."
+            echo
+            echo "## Verify this download"
+            echo
+            echo "Both files are attested. Build provenance is the strongest check: it binds the download to the commit and workflow run that produced it."
             echo
             echo '```powershell'
-            echo "Get-FileHash .\tokentray-$TAG-windows-x64.exe -Algorithm SHA256"
+            echo "gh attestation verify .\tokentray-$TAG-windows-x64-setup.exe -R ${{ github.repository }}"
             echo '```'
+            echo
+            echo "Checksums need no extra tooling and detect a corrupted or truncated download. Compare against \`SHA256SUMS.txt\`:"
+            echo
+            echo '```powershell'
+            echo "Get-FileHash .\tokentray-$TAG-windows-x64-setup.exe -Algorithm SHA256"
+            echo '```'
+            echo
+            echo "Both files are **unsigned**, so Windows SmartScreen shows a warning on first run and Smart App Control blocks them outright."
             echo
             echo "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/$TAG/CHANGELOG.md) for what is in this version."
           } > "$notes"
@@ -80,3 +133,51 @@ jobs:
           else
             gh release create "$TAG" dist/* --title "TokenTray $TAG" --notes-file "$notes"
           fi
+
+  # Subsequent version bumps only. The FIRST winget submission must be a manual PR
+  # built from packaging/winget/ -- see packaging/winget/README.md.
+  # Skips cleanly when the WINGET_TOKEN secret is absent.
+  winget:
+    needs: release
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      WINGET_TOKEN: ${{ secrets.WINGET_TOKEN }}
+      KOMAC_VERSION: '2.16.0'
+    steps:
+      - name: Resolve release tag
+        id: tag
+        shell: bash
+        run: echo "name=${TAG:-${GITHUB_REF#refs/tags/}}" >> "$GITHUB_OUTPUT"
+        env:
+          TAG: ${{ inputs.tag }}
+      - name: Check whether a winget token is configured
+        id: gate
+        shell: bash
+        run: |
+          if [ -z "$WINGET_TOKEN" ]; then
+            echo "No WINGET_TOKEN secret set; skipping winget submission."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Submit the winget manifest update
+        if: steps.gate.outputs.enabled == 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.tag.outputs.name }}
+          # Komac reads the token from the environment. Passing it as --token
+          # would expose it in the process argument list.
+          GITHUB_TOKEN: ${{ secrets.WINGET_TOKEN }}
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          url="https://github.com/${{ github.repository }}/releases/download/$TAG/tokentray-$TAG-windows-x64-setup.exe"
+          curl -fsSL -o komac.exe \
+            "https://github.com/russellbanks/Komac/releases/download/v${KOMAC_VERSION}/komac-${KOMAC_VERSION}-x86_64-pc-windows-msvc.exe"
+          ./komac.exe update deeno13.TokenTray \
+            --version "$version" \
+            --urls "$url" \
+            --submit

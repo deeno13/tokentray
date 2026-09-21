@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: deeno13.TokenTray
+PackageVersion: 0.1.0
+MinimumOSVersion: 10.0.19041.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/deeno13/tokentray/releases/download/v0.1.0/tokentray-v0.1.0-windows-x64-setup.exe
+    # PLACEHOLDER. Replace with the real SHA-256 from the release's SHA256SUMS.txt
+    # before submitting. Do not submit this file with zeros.
+    InstallerSha256: '0000000000000000000000000000000000000000000000000000000000000000'
+ManifestType: installer
+ManifestVersion: 1.6.0

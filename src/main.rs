@@ -9,6 +9,7 @@ mod antigravity;
 mod extras;
 mod config;
 mod autostart;
+mod webview2;
 
 use std::{collections::BTreeMap, sync::Mutex};
 use tauri::{AppHandle, Manager};
@@ -239,6 +240,9 @@ fn show_popup(app: &AppHandle) {
 }
 
 fn main() {
+    // Tauri cannot create a window without WebView2, and this binary has no
+    // console to report that in. Explain it before the builder runs.
+    webview2::require();
     let data = config::config_path();
     if let Some(parent) = data.parent() { let _ = std::fs::create_dir_all(parent); }
     tauri::Builder::default()

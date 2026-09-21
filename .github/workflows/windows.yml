@@ -2,35 +2,59 @@ name: Windows
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
+env:
+  CARGO_DENY_VERSION: '0.20.2'
 jobs:
   build:
     runs-on: windows-latest
     timeout-minutes: 35
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
       - name: Frontend regression checks
         run: node --test tests/*.test.mjs
       - name: Install Rust
         run: rustup update stable --no-self-update
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
       - name: Rust regression checks
         run: cargo test --release --locked
       - name: Preserve resolved dependency versions
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: resolved-cargo-lock
           path: Cargo.lock
       - name: Build portable Windows executable
         run: cargo build --release --locked
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: TokenTray-windows-x64
           path: target/release/tokentray.exe
           if-no-files-found: error
-
+      # Dependency audit runs after the tests so an advisory cannot mask a real
+      # test failure. The binary is pinned by version and checksum-verified
+      # rather than pulled through an unpinned third-party action.
+      - name: Install cargo-deny
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/EmbarkStudios/cargo-deny/releases/download/${CARGO_DENY_VERSION}"
+          asset="cargo-deny-${CARGO_DENY_VERSION}-x86_64-pc-windows-msvc.tar.gz"
+          curl -fsSL -o "$asset" "$base/$asset"
+          curl -fsSL -o "$asset.sha256" "$base/$asset.sha256"
+          # The published .sha256 is uppercase hex; sha256sum emits lowercase.
+          expected=$(cut -d' ' -f1 < "$asset.sha256" | tr 'A-F' 'a-f')
+          actual=$(sha256sum "$asset" | cut -d' ' -f1 | tr 'A-F' 'a-f')
+          if [ "$expected" != "$actual" ]; then
+            echo "cargo-deny checksum mismatch: expected $expected, got $actual" >&2
+            exit 1
+          fi
+          tar -xzf "$asset" --strip-components=1
+          ./cargo-deny.exe --version
+      - name: Dependency audit
+        shell: bash
+        run: ./cargo-deny.exe --all-features check

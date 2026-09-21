@@ -14,6 +14,8 @@ node --test tests/*.test.mjs
 cargo build --release --locked
 ```
 
+Building the installer additionally needs the Tauri CLI (`cargo tauri build`). CI installs a pinned copy; you only need it locally when changing packaging. See [packaging/README.md](packaging/README.md).
+
 Run `.\target\release\tokentray.exe --show` to inspect the app. After a visual change, regenerate the sample README images:
 
 ```powershell
