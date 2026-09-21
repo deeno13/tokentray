@@ -88,7 +88,7 @@ fn gh_token() -> Option<String> {
 #[derive(Debug)] enum Failure { Auth, Backoff(u64), Invalid, Network }
 fn auth_headers(id: &str, token: &str) -> Vec<(&'static str, String)> {
     let authorization = if id == "glm" { token.to_string() } else { format!("Bearer {token}") };
-    let mut headers = vec![("Authorization", authorization), ("Accept", "application/json".into()), ("User-Agent", "TokenTray/0.1.0".into())];
+    let mut headers = vec![("Authorization", authorization), ("Accept", "application/json".into()), ("User-Agent", format!("TokenTray/{}", env!("CARGO_PKG_VERSION")))];
     if id == "glm" { headers.push(("Content-Type", "application/json".into())); }
     if id == "grok" { headers.push(("X-XAI-Token-Auth", "xai-grok-cli".into())); }
     if id == "copilot" { headers.push(("X-GitHub-Api-Version", "2022-11-28".into())); }
