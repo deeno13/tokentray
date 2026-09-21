@@ -282,6 +282,7 @@ progress::-webkit-progress-value { background: var(--ring-color, var(--accent));
   .enter-forward { animation: page-forward 170ms cubic-bezier(.2,.75,.35,1) both; }
   .enter-back { animation: page-back 170ms cubic-bezier(.2,.75,.35,1) both; }
   .detail-enter { animation: detail-reveal 150ms cubic-bezier(.2,.75,.35,1) both; }
+  .ring svg { transition: transform 700ms cubic-bezier(.2,.75,.35,1); }
 }
 
 :root { --ok: #147055; --warn: #8a5a12; --bad: #a8352e; }

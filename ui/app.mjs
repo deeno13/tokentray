@@ -19,7 +19,8 @@ function firstRun() { return settings.onboarded===false; }
 // Keep click targets intact while background readings update. Switching layouts rebuilds
 // the list once; readings after that reuse the same buttons.
 const providerButtons=new Map();
-let builtLayout=null, revealedProvider=null;
+const ringTurns=new Map();
+let builtLayout=null, revealedProvider=null, manualRefresh=new Set();
 function enterPage(el,back) {
   el.classList.remove('enter-forward','enter-back');
   void el.offsetWidth;
@@ -35,6 +36,18 @@ function ringSvg() {
     circles[type+'-'+which]=circle;svg.append(circle);
   }
   return {svg,circles};
+}
+// One full turn per completed reading. A provider that lands on its own turns just its
+// ring; the reading that answers a manual request stays still, because the click already
+// turned every ring whether or not a cooldown lets a read follow.
+function spinRings(ids) {
+  if(!matchMedia('(prefers-reduced-motion: no-preference)').matches)return;
+  for(const id of ids) {
+    const turns=(ringTurns.get(id)??0)+1;
+    ringTurns.set(id,turns);
+    const entry=providerButtons.get(id);
+    if(entry?.svg)entry.svg.style.transform=`rotate(${turns*360-90}deg)`;
+  }
 }
 function selectProvider(id) { selected=selected===id?null:id;render(); }
 function createTile(provider) {
@@ -87,7 +100,7 @@ function paint(element,hex,property='--ring-color') {
 }
 function renderOverview(providers,now) {
   const layout=layoutId(settings.layout), list=$('providers');
-  if(builtLayout!==layout){providerButtons.clear();list.replaceChildren();builtLayout=layout;}
+  if(builtLayout!==layout){providerButtons.clear();list.replaceChildren();builtLayout=layout;ringTurns.clear();}
   list.dataset.layout=layout;
   const enabled=new Set(providers.map(p=>p.id));
   for(const child of [...list.children])if(!child.dataset.provider||!enabled.has(child.dataset.provider))child.remove();
@@ -371,6 +384,8 @@ document.addEventListener('keydown',e=>{
 $('refresh').addEventListener('click',async()=>{
   if($('refresh').disabled)return;
   if(!native){notice('Sample preview only. Live readings appear in the Windows app.',true);return;}
+  manualRefresh=new Set(enabledProviders(settings).map(p=>p.id));
+  spinRings(manualRefresh);
   $('refresh').disabled=true;$('refresh').setAttribute('aria-busy','true');
   try{await invoke('refresh_usage');notice('Refresh requested. Provider cooldowns still apply.',true);}catch{notice('Refresh failed. Try restarting TokenTray.');}
   setTimeout(()=>{$('refresh').disabled=false;$('refresh').setAttribute('aria-busy','false');},1500);
@@ -383,7 +398,14 @@ if(native){
     try{startupEnabled=await invoke('get_startup');startupAvailable=true;}catch{notice('Could not read Windows startup settings.');}
     await window.__TAURI__.event.listen('accounts',e=>{accounts=e.payload;updateAccounts();resize();});
     accounts=await invoke('get_accounts');
-    for(const p of PROVIDERS)await window.__TAURI__.event.listen(p.id==='claude'?'usage':p.id,e=>{snapshots[p.id]=e.payload;render();});
+    for(const p of PROVIDERS)await window.__TAURI__.event.listen(p.id==='claude'?'usage':p.id,e=>{
+      // A reading is fresh only when its fetch time moved forward; a rebroadcast of a
+      // cooldown or a failure keeps the old timestamp and stays still.
+      const fresh=(e.payload?.fetched_at??0)>(snapshots[p.id]?.fetched_at??0);
+      snapshots[p.id]=e.payload;
+      if(fresh&&!manualRefresh.delete(p.id))spinRings([p.id]);
+      render();
+    });
     await window.__TAURI__.event.listen('notice',e=>notice(e.payload));
     await window.__TAURI__.event.listen('open-settings',()=>showPage('settings'));
     await window.__TAURI__.event.listen('popup-hidden',()=>{if(page!=='first-run')showPage('overview');});
