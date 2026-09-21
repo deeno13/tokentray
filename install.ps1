@@ -66,11 +66,14 @@ try {
     Invoke-WebRequest -Uri "$base/SHA256SUMS.txt" -OutFile $tmpSums  -Headers $headers -UseBasicParsing
 
     # 2. Verify the checksum. This is mandatory and has no override flag.
-    #    SHA256SUMS.txt is sha256sum format: "<hex>  <filename>".
+    #    sha256sum writes "<hex>  <name>" in text mode and "<hex> *<name>" in
+    #    binary mode. The Windows runner produces the latter, so the leading
+    #    asterisk has to be stripped before comparing names.
     $expected = $null
     foreach ($line in Get-Content -LiteralPath $tmpSums) {
         $parts = $line -split '\s+', 2
-        if ($parts.Count -eq 2 -and $parts[1].Trim() -eq $asset) { $expected = $parts[0].Trim() }
+        if ($parts.Count -ne 2) { continue }
+        if ($parts[1].Trim().TrimStart('*') -eq $asset) { $expected = $parts[0].Trim() }
     }
     if (-not $expected) { throw "SHA256SUMS.txt has no entry for $asset." }
 
