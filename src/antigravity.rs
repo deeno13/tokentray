@@ -265,7 +265,7 @@ fn read_credential_raw() -> Option<Vec<u8>> {
     let target: Vec<u16> = "gemini:antigravity".encode_utf16().chain(std::iter::once(0)).collect();
     let mut pcred: *mut CREDENTIALW = std::ptr::null_mut();
     unsafe {
-        if CredReadW(PCWSTR(target.as_ptr()), CRED_TYPE_GENERIC, 0, &mut pcred).is_err() || pcred.is_null() {
+        if CredReadW(PCWSTR(target.as_ptr()), CRED_TYPE_GENERIC, Some(0), &mut pcred).is_err() || pcred.is_null() {
             return None;
         }
         let c = &*pcred;
